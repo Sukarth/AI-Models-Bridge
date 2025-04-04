@@ -50,7 +50,7 @@ The following classification system is used to indicate the implementation statu
 
 
 
-## 🚀 Getting Started (still in progress, not ready yet)
+## 🚀 Getting Started (section still in progress, not ready yet)
 
 ### For Library Users
 
@@ -104,7 +104,7 @@ await model.sendMessage('What is in this image?', {
 
 ```
 
-## 📦 Installation (still in progress, not ready yet)
+## 📦 Installation (section still in progress, not ready yet)
 To install the AI Models Bridge library and test it, download the source code and run the following command in your terminal in the 'Demo_extension' folder to build the library:
 
 ```bash
