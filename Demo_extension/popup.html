@@ -4,134 +4,14 @@
 <html lang="en">
 <head>
   <title>AI Models Bridge Demo</title>
-  <style>
-    body {
-      width: 450px;
-      padding: 15px;
-      font-family: Arial, sans-serif;
-    }
-    select, input, textarea, button {
-      width: 100%;
-      margin-bottom: 10px;
-      padding: 8px;
-      box-sizing: border-box;
-    }
-    #response {
-      white-space: pre-wrap;
-      border: 1px solid #ccc;
-      padding: 10px;
-      height: 250px;
-      overflow-y: auto;
-      margin-bottom: 10px;
-    }
-    .loading {
-      color: #888;
-      font-style: italic;
-    }
-    .btn {
-      background: #4a5568;
-      color: white;
-      padding: 6px 12px;
-      border-radius: 4px;
-      margin: 4px;
-      cursor: pointer;
-    }
-    .btn:hover {
-      background: #2d3748;
-    }
-    .conversation-item {
-      padding: 8px;
-      margin: 4px 0;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .conversation-item:hover {
-      background: #f7fafc;
-    }
-    .hidden {
-      display: none;
-    }
-    .button-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .button-row button {
-      flex: 1;
-      margin: 0 5px;
-    }
-    .button-row button:first-child {
-      margin-left: 0;
-    }
-    .button-row button:last-child {
-      margin-right: 0;
-    }
-    .image-preview-container {
-      position: relative;
-      display: inline-block;
-      margin-bottom: 10px;
-    }
-    .preview-image {
-      max-width: 100px;
-      max-height: 100px;
-      border-radius: 4px;
-    }
-    .remove-btn {
-      position: absolute;
-      top: -8px;
-      right: -8px;
-      background: #ff4d4d;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      font-size: 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .image-upload-container {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    #image-preview {
-      margin-left: 10px;
-    }
-    .message {
-      padding: 8px 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      max-width: 85%;
-    }
-    .user-message {
-      background-color: #e2f5fe;
-      align-self: flex-end;
-      margin-left: auto;
-    }
-    .assistant-message {
-      background-color: #f0f0f0;
-      align-self: flex-start;
-    }
-    #chat-container {
-      display: flex;
-      flex-direction: column;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <h2>AI Chat Extension</h2>
   
   <select id="model-select" title="Select AI Model">
-    <option value="chatgpt">ChatGPT API</option>
-    <option value="bard">Google Bard</option>
-    <option value="claude">Claude Web</option>
-    <option value="openrouter">OpenRouter</option>
-    <option value="gemini">Gemini API</option>
-    <option value="baichuan">Baichuan</option>
+    <option value="bing">Bing/Copilot Web</option>
+    <option value="bard">Bard/Gemini Web</option>
   </select>
   
   <div id="api-key-container">
@@ -146,7 +26,9 @@
   <div id="conversations-list" class="hidden">
     <!-- Conversations will be listed here -->
   </div>
-  
+
+  <div id="current-thread-title"></div>
+
   <div id="response">
     <div id="chat-container">
       <!-- Messages will appear here -->
@@ -161,8 +43,7 @@
   <textarea id="prompt" placeholder="Enter your message" rows="3"></textarea>
   
   <button id="send-button">Send</button>
-  
   <script src="lib/ai-models-bridge.min.js"></script>
-  <script src="dist/bundle.js"></script>
+  <script src="dist/popup.bundle.js"></script>
 </body>
 </html>

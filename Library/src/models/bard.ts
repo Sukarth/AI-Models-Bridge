@@ -1,11 +1,9 @@
 import { ofetch } from 'ofetch';
-import Browser from 'webextension-polyfill';
 import { v4 as uuid } from 'uuid';
 import { AbstractModel } from './abstract-model';
-import { AIModelError, ErrorCode } from './types';
+import { AIModelError, ErrorCode, StatusEvent } from './types';
 
-// REMOVE: Old ConversationContext interface
-// ADD: New Bard-specific metadata interface
+
 interface BardThreadMetadata {
   contextIds: [string, string, string];
   requestParams: {
@@ -34,7 +32,7 @@ export class BardModel extends AbstractModel {
 
   private async initializeStorage(): Promise<void> {
     // Ensure threads storage exists
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     if (!threads.length) {
       await this.saveThreadsToStorage([]);
     }
@@ -42,7 +40,7 @@ export class BardModel extends AbstractModel {
   }
 
   private async validateExistingThreads(): Promise<void> {
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     let hasChanges = false;
 
     for (const thread of threads) {
@@ -176,7 +174,7 @@ export class BardModel extends AbstractModel {
   private async ensureThreadLoaded(): Promise<void> {
     if (!this.currentThread) {
       // Try to load the most recent thread for this model
-      const threads = await this.loadThreadsFromStorage();
+      const threads = await this.getAllThreads();
       const bardThreads = threads.filter(t => 
         t.modelName === this.getName() && this.isValidBardMetadata(t.metadata)
       );
@@ -198,7 +196,7 @@ export class BardModel extends AbstractModel {
     prompt: string;
     image?: File;
     signal?: AbortSignal;
-    onEvent: (event: { type: string; data?: any }) => void;
+    onEvent: (event: StatusEvent) => void;
   }): Promise<void> {
     try {
       params.onEvent({
@@ -281,23 +279,24 @@ export class BardModel extends AbstractModel {
       params.onEvent({
         type: 'UPDATE_ANSWER',
         data: { 
-          text,
-          messageId: ids[0],
-          conversationId: ids[1],
-          messages: currentThread.messages
+          text: text
         }
       });
 
-      params.onEvent({ type: 'DONE' });
+      params.onEvent({ 
+        type: 'DONE',
+        data: {
+          threadId: ids[1]
+        }
+        
+       });
     } catch (error) {
       params.onEvent({
         type: 'ERROR',
-        data: {
           error: error instanceof AIModelError ? error : new AIModelError(
             error instanceof Error ? error.message : String(error),
             ErrorCode.NETWORK_ERROR
           )
-        }
       });
       throw error;
     }
@@ -305,7 +304,7 @@ export class BardModel extends AbstractModel {
 
   // OVERRIDE: Thread loading to handle Bard session refresh
   async loadThread(threadId: string): Promise<void> {
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     const thread = threads.find(t => t.id === threadId);
     
     if (thread && thread.modelName === this.getName()) {
@@ -366,7 +365,7 @@ export class BardModel extends AbstractModel {
     if (!this.currentThread) return;
     
     // Load all threads
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     
     // Find if this thread already exists
     const existingIndex = threads.findIndex(t => t.id === this.currentThread!.id);

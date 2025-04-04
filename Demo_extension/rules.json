@@ -1,0 +1,78 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://copilot.microsoft.com"
+        },
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://copilot.microsoft.com/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "wss://copilot.microsoft.com/*",
+      "resourceTypes": ["websocket"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://copilot.microsoft.com"
+        },
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://copilot.microsoft.com/"
+        },
+        {
+          "header": "sec-fetch-site",
+          "operation": "set",
+          "value": "same-origin"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "https://copilot.microsoft.com/*",
+      "resourceTypes": ["xmlhttprequest", "main_frame", "sub_frame"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        {
+          "header": "content-security-policy",
+          "operation": "remove"
+        },
+        {
+          "header": "content-security-policy-report-only",
+          "operation": "remove"
+        },
+        {
+          "header": "x-frame-options",
+          "operation": "remove"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "https://copilot.microsoft.com/*",
+      "resourceTypes": ["main_frame", "sub_frame"]
+    }
+  }
+]

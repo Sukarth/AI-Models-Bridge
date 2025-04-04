@@ -22,6 +22,6 @@ bundledFiles.forEach(file => {
     fs.copyFileSync(sourcePath, destPath);
     console.log(`Copied ${file} to Demo_extension/lib/`);
   } else {
-    console.error(`Source file not found: ${sourcePath}`);
+    console.info(`Source file not found: ${sourcePath}`);
   }
 });

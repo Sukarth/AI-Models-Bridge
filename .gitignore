@@ -1,10 +1,14 @@
+/3.79.0_0
 /old
+/misc
 /old_sample_usage_methods
 .hintrc
 /library/node_modules/
 /library/dist/
 /Demo_extension/node_modules/
 /Demo_extension/dist/
+/Demo_extension/lib
+/Demo_extension/_metadata
 *.log
 .DS_Store
 .env

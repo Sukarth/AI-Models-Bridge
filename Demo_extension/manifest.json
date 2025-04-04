@@ -9,14 +9,32 @@
   },
   "permissions": [
     "storage",
-    "cookies"
+    "declarativeNetRequest",
+    "cookies",
+    "scripting",
+    "tabs",
+    "windows"
   ],
   "host_permissions": [
-    "https://*.openai.com/",
-    "https://*.google.com/",
+    "https://*.openai.com/*",
+    "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
     "https://*.claude.ai/",
     "https://*.baichuan-ai.com/",
     "https://*.openrouter.ai/",
-    "https://*.anthropic.com/"
-  ]
+    "https://*.anthropic.com/",
+    "https://copilot.microsoft.com/*",
+    "wss://copilot.microsoft.com/*",
+    "https://*.microsoft.com/*",
+    "https://*.bing.com/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
 }

@@ -4,8 +4,8 @@
   "description": "Demo extension for AI Models Bridge",
   "main": "popup.js",
   "scripts": {
-    "build": "webpack",
-    "dev": "cd ../Library && npm run build:demo && cd ../Demo_extension && npm install && npm run build"
+    "build": "npm install && webpack",
+    "dev": "cd ../Library && npm run build:demo && cd ../Demo_extension && npm run build"
   },
   "keywords": [],
   "author": "Sukarth Acharya",
@@ -13,5 +13,8 @@
   "devDependencies": {
     "webpack": "^5.98.0",
     "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "webextension-polyfill": "^0.12.0"
   }
 }

@@ -1,12 +1,12 @@
 import Browser from 'webextension-polyfill';
 import { v4 as uuid } from 'uuid';
 import { 
-  AIModel, 
+  AIModel,
+  SendMessageOptions,
   ChatThread, 
-  ChatMessage, 
-  SendMessageOptions, 
-  AIModelError, 
-  ErrorCode 
+  ChatMessage,  
+  AIModelError,
+  StatusEvent, 
 } from './types';
 
 /**
@@ -30,7 +30,7 @@ export abstract class AbstractModel implements AIModel {
    * @param prompt The message to send
    * @param options Additional options for the request
    */
-  async sendMessage(prompt: string, options: SendMessageOptions = {}): Promise<string> {
+  async sendMessage(prompt: string, options: SendMessageOptions = { onEvent: () => {} }): Promise<string> {
     try {
       let fullResponse = '';
       
@@ -38,10 +38,20 @@ export abstract class AbstractModel implements AIModel {
         prompt,
         image: options.image,
         signal: options.signal,
+        mode: options.mode,
         onEvent: (event) => {
           if (event.type === 'UPDATE_ANSWER') {
             fullResponse = event.data.text;
-            options.onProgress?.(fullResponse);
+            options.onEvent({ type: 'UPDATE_ANSWER', data: { text: fullResponse } });
+          }
+          if (event.type === 'DONE') {
+            options.onEvent({ type: 'DONE', data: event.data });
+          }
+          if (event.type === 'SUGGESTED_RESPONSES') {
+            options.onEvent({ type: 'SUGGESTED_RESPONSES', data: event.data });
+          }
+          if (event.type === 'TITLE_UPDATE') {
+            options.onEvent({ type: 'TITLE_UPDATE', data: event.data });
           }
         }
       });
@@ -53,8 +63,7 @@ export abstract class AbstractModel implements AIModel {
       }
       
       throw new AIModelError(
-        error instanceof Error ? error.message : String(error),
-        ErrorCode.UNKNOWN_ERROR
+        error instanceof Error ? error.message : String(error)
       );
     }
   }
@@ -73,10 +82,11 @@ export abstract class AbstractModel implements AIModel {
     prompt: string;
     image?: File;
     signal?: AbortSignal;
-    onEvent: (event: { type: string; data?: any }) => void;
+    mode?: string;
+    onEvent: (event: StatusEvent) => void;
   }): Promise<void>;
 
-  protected async loadThreadsFromStorage(): Promise<ChatThread[]> {
+  async getAllThreads(): Promise<ChatThread[]> {
     try {
       const result = await Browser.storage.local.get(AbstractModel.THREADS_STORAGE_KEY);
       return result[AbstractModel.THREADS_STORAGE_KEY] || [];
@@ -99,7 +109,7 @@ export abstract class AbstractModel implements AIModel {
   }
 
   async loadThread(threadId: string): Promise<void> {
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     const thread = threads.find(t => t.id === threadId);
     if (!thread) {
       throw new Error('Thread not found');
@@ -107,12 +117,12 @@ export abstract class AbstractModel implements AIModel {
     this.currentThread = thread;
   }
 
-  async saveThread(title?: string): Promise<void> {
+  async saveThread(): Promise<void> {
     if (!this.currentThread) {
       throw new Error('No active thread to save');
     }
 
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     const existingIndex = threads.findIndex(t => t.id === this.currentThread!.id);
     
     if (existingIndex !== -1) {
@@ -124,12 +134,8 @@ export abstract class AbstractModel implements AIModel {
     await this.saveThreadsToStorage(threads);
   }
 
-  async getAllThreads(): Promise<ChatThread[]> {
-    return this.loadThreadsFromStorage();
-  }
-
   async deleteThread(threadId: string): Promise<void> {
-    const threads = await this.loadThreadsFromStorage();
+    const threads = await this.getAllThreads();
     await this.saveThreadsToStorage(threads.filter(t => t.id !== threadId));
     
     if (this.currentThread?.id === threadId) {
@@ -145,4 +151,18 @@ export abstract class AbstractModel implements AIModel {
       timestamp: Date.now()
     };
   }
+  
+  
+  /**
+   * The base URL for the AI service
+   */
+  protected baseUrl: string = '';
+  
+  /**
+   * Get the base URL for the AI service
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+  
 }

@@ -1,0 +1,271 @@
+body {
+  width: 450px;
+  padding: 15px;
+  font-family: Arial, sans-serif;
+}
+
+#current-thread-title {
+  padding: 0.2% 0 1.5% 1%;
+  font-size: large;
+}
+
+select, input, textarea, button {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+#response {
+  white-space: pre-wrap;
+  border: 1px solid #ccc;
+  padding: 10px;
+  height: 250px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.loading {
+  color: #888;
+  font-style: italic;
+}
+
+.btn {
+  background: #4a5568;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin: 4px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #2d3748;
+}
+
+.conversation-item {
+  padding: 8px;
+  margin: 4px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.conversation-item:hover {
+  background: #f7fafc;
+}
+
+.hidden {
+  display: none;
+}
+
+.button-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.button-row button {
+  flex: 1;
+  margin: 0 5px;
+}
+
+.button-row button:first-child {
+  margin-left: 0;
+}
+
+.button-row button:last-child {
+  margin-right: 0;
+}
+
+.image-preview-container {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.preview-image {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 4px;
+}
+
+.remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-upload-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#image-preview {
+  margin-left: 10px;
+}
+
+.message {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.user-message {
+  background-color: #e2f5fe;
+  align-self: flex-end;
+  margin-left: auto;
+}
+
+.assistant-message {
+  background-color: #f0f0f0;
+  align-self: flex-start;
+}
+
+#chat-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.suggestions-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.suggestion-btn {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.suggestion-btn:hover {
+  background-color: #e0e0e0;
+}
+
+/* Updated thread styles */
+#conversations-list {
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.threads-header {
+  background-color: #4a5568;
+  color: white;
+  padding: 10px 15px;
+  font-weight: bold;
+  border-bottom: 1px solid #ddd;
+}
+
+.threads-container {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.thread-item {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.thread-item:hover {
+  background-color: #f5f8ff;
+}
+
+.thread-title {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #2d3748;
+}
+
+.thread-date {
+  font-size: 12px;
+  color: #718096;
+}
+
+.no-threads-msg {
+  padding: 15px;
+  color: #718096;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Add this to your existing CSS file */
+
+.welcome-message {
+  text-align: center;
+  color: #718096;
+  font-size: 16px;
+  margin: 10px auto 50px auto;
+  padding: 15px;
+  font-style: italic;
+  max-width: 80%;
+  position: relative;
+  top: -30px;
+}
+
+.active-thread {
+  background-color: #e6f7ff;
+  border-left: 4px solid #1890ff;
+}
+
+.active-thread .thread-title {
+  color: #1890ff;
+}
+
+/* Make sure this doesn't conflict with the hover state */
+.active-thread:hover {
+  background-color: #d6f0ff;
+}
+
+.mode-toggle-container {
+  margin: 10px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+#bing-mode-select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: white;
+}
+
+.mode-info {
+  cursor: help;
+  color: #3498db;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none !important;
+}

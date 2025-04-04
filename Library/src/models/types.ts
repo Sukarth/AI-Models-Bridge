@@ -1,3 +1,42 @@
+export type StrPayload = {
+  text: string
+}
+
+export type DoneEvent = {
+  threadId: string
+}
+export type TitleData = {
+  title: string
+  threadId: string
+}
+
+export type SuggestedResponses = {
+  suggestions: string[]
+}
+
+export type StatusEvent =
+  | {
+    type: 'UPDATE_ANSWER'
+    data: StrPayload
+  }
+  | {
+    type: 'DONE'
+    data: DoneEvent
+  }
+  | {
+    type: 'SUGGESTED_RESPONSES'
+    data: SuggestedResponses
+  }
+  | {
+    type: 'TITLE_UPDATE'
+    data: TitleData
+  }
+  | {
+    type: 'ERROR'
+    error: AIModelError
+  }
+
+
 /**
  * Interface for all AI models
  */
@@ -63,12 +102,17 @@ export interface SendMessageOptions {
    * Signal to abort the request
    */
   signal?: AbortSignal;
-  
+
   /**
-   * Callback for streaming responses
-   * @param text The current text of the response
+   * Mode for the request
    */
-  onProgress?: (text: string) => void;
+  mode?: string; // 'chat' | 'reasoning'
+
+  /**
+   * Callback for handling events during the request
+   * @param event - The event to handle
+   */
+  onEvent: (event: StatusEvent) => void;
 }
 
 /**
@@ -90,10 +134,7 @@ export enum ErrorCode {
  * Error class for AI model errors
  */
 export class AIModelError extends Error {
-  constructor(
-    message: string,
-    public code: ErrorCode = ErrorCode.UNKNOWN_ERROR
-  ) {
+  constructor(message: string, public code: ErrorCode = ErrorCode.UNKNOWN_ERROR) {
     super(message);
     this.name = 'AIModelError';
   }
@@ -121,4 +162,14 @@ export interface ChatThread {
   updatedAt: number;
   modelName: string;
   metadata?: Record<string, any>;
+}
+
+/**
+ * Base configuration interface that all model configs should extend
+ */
+export interface BaseModelConfig {
+  /**
+   * The base URL for the AI service
+   */
+  baseUrl?: string;
 }
