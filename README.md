@@ -14,7 +14,7 @@ AI Models Bridge is a library that allows developers to easily integrate multipl
 
 The project consists of two main parts:
 
-1. **Library**: A TypeScript library that provides a unified API for interacting with various AI models
+1. **Library**: The Typescript library itself, that provides a unified interface for interacting with various AI models
 2. **Demo Extension**: A browser extension that demonstrates how the library can be used
 
 
