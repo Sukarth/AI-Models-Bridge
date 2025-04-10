@@ -7,6 +7,7 @@ import {
   ChatMessage,  
   AIModelError,
   StatusEvent, 
+  ErrorCode,
 } from './types';
 
 /**
@@ -39,6 +40,8 @@ export abstract class AbstractModel implements AIModel {
         image: options.image,
         signal: options.signal,
         mode: options.mode,
+        model: options.model,
+        style_key: options.style_key,
         onEvent: (event) => {
           if (event.type === 'UPDATE_ANSWER') {
             fullResponse = event.data.text;
@@ -83,6 +86,8 @@ export abstract class AbstractModel implements AIModel {
     image?: File;
     signal?: AbortSignal;
     mode?: string;
+    model?: string;
+    style_key?: string;
     onEvent: (event: StatusEvent) => void;
   }): Promise<void>;
 
@@ -157,6 +162,8 @@ export abstract class AbstractModel implements AIModel {
    * The base URL for the AI service
    */
   protected baseUrl: string = '';
+  protected models: Record<string, Record<string, string>> = {};
+  protected defaultModel: string = '';
   
   /**
    * Get the base URL for the AI service
@@ -165,4 +172,59 @@ export abstract class AbstractModel implements AIModel {
     return this.baseUrl;
   }
   
+  /**
+   * Helper method to handle errors in a consistent way across all models
+   * @param error The error that occurred
+   * @param errDesc A description of the error
+   * @param errorCode The error code to use
+   * @param params Optional - The original parameters with onEvent callback
+   */
+
+  protected handleModelError(
+    errDesc: string,
+    errorCode: ErrorCode = ErrorCode.UNKNOWN_ERROR,
+    params?: { onEvent: (event: StatusEvent) => void },
+    error?: unknown,
+  ): void {
+    // First, log the error for debugging
+    
+    const errorMessage = error ? 
+      (error instanceof AIModelError || error instanceof Error ? error.message : String(error))
+      : errDesc;
+    const combinedMessage = error ? `${errorMessage} - Description: ${errDesc}.` : errDesc;
+    // Convert to AIModelError if it's not already one
+    const modelError = new AIModelError(
+          combinedMessage,
+          errorCode 
+        );
+    
+    // Send the ERROR event with properly formatted error
+    if (params) {
+      params.onEvent({
+        type: 'ERROR',
+        error: modelError
+      });
+    }
+
+    console.error('AI model error:', modelError);
+
+    throw modelError;
+  }
+
+
+  /**
+   * Share the current conversation and get a shareable URL
+   * This is an optional method that models can implement if they support sharing
+   * @returns A promise that resolves to a shareable URL
+   */
+  async shareConversation(metadata:any): Promise<string> {
+    throw new AIModelError(
+      `Sharing is not supported by the ${this.getName()} model`,
+      ErrorCode.FEATURE_NOT_SUPPORTED
+    );
+  }
+
+
 }
+
+  

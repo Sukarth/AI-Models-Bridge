@@ -12,10 +12,19 @@
   <select id="model-select" title="Select AI Model">
     <option value="bing">Bing/Copilot Web</option>
     <option value="bard">Bard/Gemini Web</option>
+    <option value="claude">Claude Web</option>
   </select>
   
   <div id="api-key-container">
     <input type="password" id="api-key" placeholder="Enter API Key">
+  </div>
+  
+  <!-- Add Claude styles dropdown (hidden by default) -->
+  <div id="claude-styles-container" class="hidden">
+    <select id="claude-style-select" title="Select Claude Style">
+      <option value="">Default Style</option>
+      <!-- Styles will be populated dynamically -->
+    </select>
   </div>
   
   <div class="button-row">
@@ -27,7 +36,10 @@
     <!-- Conversations will be listed here -->
   </div>
 
-  <div id="current-thread-title"></div>
+  <div id="thread-title-container">
+    <div id="current-thread-title"></div>
+    <button id="edit-title-btn" class="icon-btn" title="Edit title">✏️</button>
+  </div>
 
   <div id="response">
     <div id="chat-container">

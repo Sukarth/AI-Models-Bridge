@@ -47,6 +47,7 @@ The following classification system is used to indicate the implementation statu
 |-------|--------|---------|---------------------------|
 | Google Gemini Web (Bard) | L5 | Text and image support with conversation history and thread management. Basic error handling implemented. Streaming not supported by model. | 2.0 Flash |
 | Copilot Web (Bing Chat) | L5 | Supports text and image inputs. Implements conversation modes (chat, reasoning). Has automatic thread title generation, suggested replies, and response streaming. Thread management and conversation history functional. Still requires improved error handling and reconnection logic. | Default (based on GPT-4, GPT-4o and GPT-o3-mini) |
+| Claude Web (Claude) | L5 | Supports text and image inputs. Supports automatic and manual thread title generation, response streaming, and Claude specific conversation/response styles. Has a lot of utility other methods, like deleting, sharing, renaming conversations, etc. Thread management and conversation history functional. Still requires somewhat improved error handling and reconnection logic, and support of other models. | 3.7 Sonnet |
 
 
 

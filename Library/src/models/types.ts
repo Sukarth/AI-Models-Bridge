@@ -109,6 +109,19 @@ export interface SendMessageOptions {
   mode?: string; // 'chat' | 'reasoning'
 
   /**
+   * Model type/version of the AI for the request
+   */
+
+  model?: string;
+
+
+  /**
+   * Response style metadata for some models
+   */
+
+  style_key?: string;
+
+  /**
    * Callback for handling events during the request
    * @param event - The event to handle
    */
@@ -128,6 +141,23 @@ export enum ErrorCode {
   CONVERSATION_LIMIT = 'conversation_limit',
   CONTENT_FILTERED = 'content_filtered',
   INVALID_REQUEST = 'invalid_request',
+  INVALID_API_KEY = 'invalid_api_key',
+  INVALID_THREAD_ID = 'invalid_thread_id',
+  INVALID_MESSAGE_ID = 'invalid_message_id',
+  INVALID_MODEL = 'invalid_model',
+  // INVALID_IMAGE = 'invalid_image',
+  // INVALID_IMAGE_URL = 'invalid_image_url',
+  INVALID_IMAGE_TYPE = 'invalid_image_type',
+  INVALID_IMAGE_CONTENT = 'invalid_image_content',
+  UPLOAD_FAILED = 'upload_failed',
+  UPLOAD_TIMEOUT = 'upload_timeout',
+  UPLOAD_SIZE_EXCEEDED = 'upload_size_exceeded',
+  UPLOAD_TYPE_EXCEEDED = 'upload_type_exceeded',
+  UPLOAD_AMOUNT_EXCEEDED = 'upload_amount_exceeded',
+  UPLOAD_TYPE_NOT_SUPPORTED = 'upload_type_not_supported',
+  RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
+  METADATA_INITIALIZATION_ERROR = 'metadata_initialization_error',
+  FEATURE_NOT_SUPPORTED = 'feature_not_supported',
 }
 
 /**

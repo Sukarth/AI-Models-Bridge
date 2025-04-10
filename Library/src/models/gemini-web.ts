@@ -17,6 +17,7 @@ interface BardThreadMetadata {
 function generateReqId() {
   return Math.floor(Math.random() * 900000) + 100000;
 }
+
 function extractFromHTML(variableName: string, html: string) {
   const regex = new RegExp(`"${variableName}":"([^"]+)"`)
   const match = regex.exec(html)
@@ -26,7 +27,17 @@ function extractFromHTML(variableName: string, html: string) {
 export class BardModel extends AbstractModel {
   constructor() {
     super();
-    // Initialize storage and validate threads
+    this.models = {
+      "gemini-2.0-flash": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"f299729663a2343f"]' },
+      "gemini-2.0-flash-exp": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"f299729663a2343f"]' },
+      "gemini-2.0-flash-thinking": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"9c17b1863f581b8a"]' },
+      "gemini-2.0-flash-thinking-with-apps": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"f8f8f5ea629f5d37"]' },
+      "gemini-2.0-exp-advanced": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"b1e46a6037e6aa9f"]' },
+      "gemini-1.5-flash": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"418ab5ea040b5c43"]' },
+      "gemini-1.5-pro": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"9d60dfae93c9ff1f"]' },
+      "gemini-1.5-pro-research": { "x-goog-ext-525001261-jspb": '[null,null,null,null,"e5a44cb1dae2b489"]' },
+    };
+    this.defaultModel = 'gemini-2.0-flash';
     this.initializeStorage().catch(console.error);
   }
 
@@ -196,6 +207,7 @@ export class BardModel extends AbstractModel {
     prompt: string;
     image?: File;
     signal?: AbortSignal;
+    model?: string;
     onEvent: (event: StatusEvent) => void;
   }): Promise<void> {
     try {
@@ -235,6 +247,8 @@ export class BardModel extends AbstractModel {
         ]),
       ];
 
+      const modelHeaders = this.models[params.model || this.defaultModel];
+
       const resp = await ofetch(
         'https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate',
         {
@@ -249,14 +263,13 @@ export class BardModel extends AbstractModel {
             at: metadata.requestParams.atValue,
             'f.req': JSON.stringify(payload),
           }),
+          headers: modelHeaders,
           parseResponse: (txt) => txt,
         },
       );
 
       const { text, ids } = this.parseBardResponse(resp);
       
-      // Log the new context IDs
-      console.log('New context IDs after response:', ids);
       
       // Update thread with assistant's response
       const assistantMessage = this.createMessage('assistant', text);
@@ -269,11 +282,9 @@ export class BardModel extends AbstractModel {
       }
       currentThread.updatedAt = Date.now();
       
-      // Save thread to storage - FIXED: Only save once using the proper method
+      // Save thread to storage
       await this.saveThread();
       
-      // REMOVED: The duplicate thread saving code that was causing duplicates
-      // No longer loading all threads and saving again
 
       // Send events
       params.onEvent({
