@@ -1,5 +1,7 @@
-export type StrPayload = {
-  text: string
+export type updatePayload = {
+  text: string;
+  reasoningContent?: string; // optional reasoning content
+  reasoningElapsedSecs?: number;
 }
 
 export type DoneEvent = {
@@ -17,7 +19,7 @@ export type SuggestedResponses = {
 export type StatusEvent =
   | {
     type: 'UPDATE_ANSWER'
-    data: StrPayload
+    data: updatePayload
   }
   | {
     type: 'DONE'
@@ -94,9 +96,9 @@ export interface AIModel {
  */
 export interface SendMessageOptions {
   /**
-   * Image to include with the message (if supported)
+   * Images to include with the message (if supported, max 4 for Perplexity)
    */
-  image?: File;
+  images?: File[]; // Changed from image?: File
   
   /**
    * Signal to abort the request
@@ -122,6 +124,15 @@ export interface SendMessageOptions {
   style_key?: string;
 
   /**
+   * Internet search metadata for some models
+   */
+  searchFocus?: string;
+  
+  searchSources?: string[];
+
+  searchEnabled?: boolean;
+
+  /**
    * Callback for handling events during the request
    * @param event - The event to handle
    */
@@ -143,6 +154,7 @@ export enum ErrorCode {
   INVALID_REQUEST = 'invalid_request',
   INVALID_API_KEY = 'invalid_api_key',
   INVALID_THREAD_ID = 'invalid_thread_id',
+  INVALID_METADATA = 'invalid_metadata',
   INVALID_MESSAGE_ID = 'invalid_message_id',
   INVALID_MODEL = 'invalid_model',
   // INVALID_IMAGE = 'invalid_image',
@@ -158,6 +170,8 @@ export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'rate_limit_exceeded',
   METADATA_INITIALIZATION_ERROR = 'metadata_initialization_error',
   FEATURE_NOT_SUPPORTED = 'feature_not_supported',
+  RESPONSE_PARSING_ERROR = 'response_parsing_error',
+  POW_CHALLENGE_FAILED = 'pow_challenge_failed',
 }
 
 /**
@@ -177,6 +191,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  reasoningContent?: string; // For reasoning 
   timestamp: number;
   metadata?: Record<string, any>;
 }
@@ -202,4 +217,29 @@ export interface BaseModelConfig {
    * The base URL for the AI service
    */
   baseUrl?: string;
+}
+
+/**
+ * Interface for standardized parsed model responses
+ */
+export interface ParsedModelResponse {
+  text: string; // Final assistant message
+  tokensUsed?: number;
+  title?: string;
+  updatedAt?: number;
+  messageId?: string | number;
+  parentId?: string | number;
+  model?: string;
+  role?: string;
+  reasoningContent?: string; // For reasoning mode (was thinkingContent)
+  reasoningElapsedSecs?: number;
+  searchEnabled?: boolean;
+  searchStatus?: any;
+  searchResults?: any;
+  files?: any[];
+  tips?: any[];
+  insertedAt?: number;
+  status?: string;
+  error?: AIModelError;
+  [key: string]: any; // For future extensibility
 }

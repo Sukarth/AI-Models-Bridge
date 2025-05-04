@@ -1,7 +1,9 @@
 body {
   width: 450px;
   padding: 15px;
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #333;
+  background-color: #f9f9f9;
 }
 
 #thread-title-container {
@@ -53,11 +55,26 @@ body {
   padding: 8px 12px;
 }
 
-select, input, textarea, button {
+select,
+input,
+textarea,
+button {
   width: 100%;
-  margin-bottom: 10px;
-  padding: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
   box-sizing: border-box;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select:focus,
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
 }
 
 #response {
@@ -75,16 +92,23 @@ select, input, textarea, button {
 }
 
 .btn {
-  background: #4a5568;
+  background: #4a90e2;
   color: white;
-  padding: 6px 12px;
-  border-radius: 4px;
+  padding: 10px 16px;
+  border-radius: 6px;
   margin: 4px;
   cursor: pointer;
+  font-weight: 500;
+  border: none;
+  transition: background-color 0.2s, transform 0.1s;
 }
 
 .btn:hover {
-  background: #2d3748;
+  background: #3a7bc8;
+}
+
+.btn:active {
+  transform: translateY(1px);
 }
 
 .conversation-item {
@@ -128,37 +152,73 @@ select, input, textarea, button {
   margin-bottom: 10px;
 }
 
+#image-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 0 0;
+}
+
+.image-preview-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f8f9fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px 8px 8px;
+  min-height: 48px;
+  margin-bottom: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
 .preview-image {
-  max-width: 100px;
-  max-height: 100px;
+  max-width: 40px;
+  max-height: 40px;
   border-radius: 4px;
+  margin-right: 12px;
+}
+
+.file-preview-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background: #e6e6e6;
+  border-radius: 4px;
+}
+
+.file-preview-name {
+  font-size: 14px;
+  color: #333;
+  margin-right: 32px;
+  word-break: break-all;
 }
 
 .remove-btn {
   position: absolute;
-  top: -8px;
-  right: -8px;
+  top: 6px;
+  right: 6px;
   background: #ff4d4d;
   color: white;
   border: none;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 12px;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
+  transition: background 0.2s;
 }
 
-.image-upload-container {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-#image-preview {
-  margin-left: 10px;
+.remove-btn:hover {
+  background: #d32f2f;
 }
 
 .message {
@@ -174,10 +234,6 @@ select, input, textarea, button {
   margin-left: auto;
 }
 
-.assistant-message {
-  background-color: #f0f0f0;
-  align-self: flex-start;
-}
 
 #chat-container {
   display: flex;
@@ -215,7 +271,7 @@ select, input, textarea, button {
 }
 
 .threads-header {
-  background-color: #4a5568;
+  background-color: #4a90e2;
   color: white;
   padding: 10px 15px;
   font-weight: bold;
@@ -256,27 +312,28 @@ select, input, textarea, button {
   text-align: center;
 }
 
-/* Add this to your existing CSS file */
-
+/* Welcome message styling */
 .welcome-message {
   text-align: center;
   color: #718096;
   font-size: 16px;
-  margin: 10px auto 50px auto;
-  padding: 15px;
+  margin: 30px auto 50px auto;
+  padding: 20px;
   font-style: italic;
-  max-width: 80%;
+  max-width: 85%;
   position: relative;
-  top: -30px;
+  background-color: #f5f7fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .active-thread {
   background-color: #e6f7ff;
-  border-left: 4px solid #1890ff;
+  border-left: 4px solid #4a90e2;
 }
 
 .active-thread .thread-title {
-  color: #1890ff;
+  color: #4a90e2;
 }
 
 /* Make sure this doesn't conflict with the hover state */
@@ -329,14 +386,18 @@ select, input, textarea, button {
 
 /* Claude Styles Container */
 #claude-styles-container {
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  padding: 12px;
+  background-color: #f8f5ff;
+  border-radius: 8px;
+  border: 1px solid #e6d8ff;
 }
 
 #claude-style-select {
   width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
   background-color: white;
 }
 
@@ -428,4 +489,300 @@ select, input, textarea, button {
   background-color: #ffebee;
 }
 
-/* The modal styles are already defined for the share dialog */
+/* Perplexity Options Styling */
+#perplexity-options-container {
+  margin-bottom: 15px;
+  padding: 15px;
+  background-color: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d0e3ff;
+}
+
+.option-group {
+  margin-bottom: 16px;
+}
+
+.option-group:last-child {
+  margin-bottom: 0;
+}
+
+#perplexity-options-container label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #2c5282;
+}
+
+#perplexity-sources-container {
+  margin-top: 12px;
+}
+
+#perplexity-sources-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.sources-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Source Button Styling */
+.toggle-switch-label {
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: white;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  text-align: center;
+}
+
+.toggle-switch-label:hover {
+  background-color: #edf2f7;
+  border-color: #cbd5e0;
+}
+
+.toggle-switch-label input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.toggle-switch-label.active {
+  background-color: #e6f7ff;
+  border-color: #4a90e2;
+  color: #4a90e2;
+}
+
+#perplexity-model-select {
+  background-color: white;
+}
+
+
+.deepseek-toggle-row {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.deepseek-toggle-row .mode-toggle-container {
+  flex: 1;
+}
+
+.deepseek-toggle-row .mode-toggle-container label {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.deepseek-toggle-row .mode-toggle-container:last-child label {
+  justify-content: flex-end;
+}
+
+/* Removed styles for the old global #reasoning-container */
+/* --- Per-Message Reasoning Styles --- */
+.message-reasoning-container {
+  background-color: #303338;
+  /* Dark background like reference */
+  color: #b9bbbe;
+  /* Greyish text */
+  border-radius: 6px;
+  margin-bottom: 6px;
+  /* Space between reasoning and main message */
+  font-size: 0.85em;
+  border: 1px solid #40444b;
+  /* Subtle border */
+  overflow: hidden;
+  /* Keep content contained */
+  /* margin-top: 20px; */
+  white-space: normal;
+}
+
+.message-reasoning-header {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  cursor: pointer;
+  background-color: #36393f;
+  /* Slightly lighter header */
+  border-bottom: 1px solid #40444b;
+  /* Separator line */
+  transition: background-color 0.2s;
+}
+
+.message-reasoning-header:hover {
+  background-color: #40444b;
+}
+
+.message-reasoning-header .toggle-icon {
+  margin-left: auto;
+  /* Pushes icon to the right */
+  font-size: 1.0em;
+  /* Adjusted size */
+  transition: transform 0.2s ease-in-out;
+  display: inline-block;
+  /* Ensure transform works */
+}
+
+.message-reasoning-container.collapsed .toggle-icon {
+  transform: rotate(-180deg);
+}
+
+.message-reasoning-header .thought-icon {
+  margin-right: 6px;
+  font-size: 0.9em;
+  /* Adjust icon size if needed */
+}
+
+.message-reasoning-content {
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  /* Preserve whitespace and line breaks */
+  word-break: break-word;
+  max-height: 150px;
+  /* Limit initial height */
+  overflow-y: auto;
+  /* Add scroll if needed */
+  transition: max-height 0.3s ease-out, padding 0.3s ease-out, opacity 0.3s ease-out;
+  border-top: none;
+  /* Avoid double border */
+  opacity: 1;
+}
+
+.message-reasoning-container.collapsed .message-reasoning-content {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.assistant-message>.message-text-content {
+  background-color: #f0f0f0;
+  border-radius: 6px;
+  padding: 8px 8px 10px 8px;
+}
+
+
+.assistant-message {
+  background-color: transparent;
+  align-self: flex-start;
+  padding: 8px 8px;
+  width: 80%;
+}
+
+/* --- Per-Message Reasoning Styles --- */
+.message-reasoning-container {
+  background-color: #303338;
+  /* Dark background like reference */
+  color: #b9bbbe;
+  /* Greyish text */
+  border-radius: 6px;
+  margin-bottom: 6px;
+  /* Space between reasoning and main message */
+  font-size: 90%;
+  border: 1px solid #40444b;
+  /* Subtle border */
+  overflow: hidden;
+  /* Keep content contained */
+}
+
+.message-reasoning-header {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  cursor: pointer;
+  background-color: #36393f;
+  /* Slightly lighter header */
+  border-bottom: 1px solid #40444b;
+  /* Separator line */
+  transition: background-color 0.2s;
+}
+
+.message-reasoning-header:hover {
+  background-color: #40444b;
+}
+
+
+.message-reasoning-content {
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  /* Preserve whitespace and line breaks */
+  word-break: break-word;
+  max-height: 150px;
+  /* Limit initial height */
+  overflow-y: auto;
+  /* Add scroll if needed */
+  transition: max-height 0.3s ease-out, padding 0.3s ease-out, opacity 0.3s ease-out;
+  border-top: none;
+  /* Avoid double border */
+  opacity: 1;
+}
+
+.message-reasoning-container.collapsed .message-reasoning-content {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+
+
+
+#file-upload-btn::-webkit-file-upload-button {
+  visibility: visible;
+}
+
+#file-upload-btn {
+  color: transparent;
+  width: auto;
+  min-width: 110px;
+  border: 0;
+  border-radius: 0.5px;
+  padding: 0;
+  margin: 0;
+}
+
+/* File Upload Row Styles */
+.file-upload-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+.file-upload-row input[type="file"] {
+  width: auto !important;
+  min-width: 0 !important;
+  flex-shrink: 0;
+  text-indent: 62%;
+}
+
+.attachments-label {
+  font-size: 15px;
+  color: #444;
+}
+
+#file-upload-btn {
+  margin-left: auto;
+}

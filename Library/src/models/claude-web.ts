@@ -87,15 +87,15 @@ export class ClaudeWebModel extends AbstractModel {
 			return conversationId;
 		} catch (err) {
 			if (err instanceof FetchError && err.status === 403) {
-				throw this.handleModelError('There is no logged-in Claude account in this browser.', ErrorCode.UNAUTHORIZED, undefined, err); //TODO check throwing
+				return this.handleModelError('There is no logged-in Claude account in this browser.', ErrorCode.UNAUTHORIZED, undefined, err);
 				// throw new AIModelError(
-				//   'There is no logged-in Claude account in this browser.', 
+				//   'There is no logged-in Claude account in this browser.',
 				//   ErrorCode.UNAUTHORIZED
 				// );
 			}
-			throw this.handleModelError('Failed to create conversation', ErrorCode.SERVICE_UNAVAILABLE, undefined, err); //TODO check throwing
+			return this.handleModelError('Failed to create conversation', ErrorCode.SERVICE_UNAVAILABLE, undefined, err);
 			//   throw new AIModelError(
-			//     'Failed to create conversation', 
+			//     'Failed to create conversation',
 			//     ErrorCode.SERVICE_UNAVAILABLE
 			//   );
 		}
@@ -164,12 +164,12 @@ export class ClaudeWebModel extends AbstractModel {
 		const currentThread = this.getCurrentThreadSafe();
 
 		if (!currentThread.metadata) {
-			throw this.handleModelError('No thread metadata available', ErrorCode.INVALID_REQUEST);
+			return this.handleModelError('No thread metadata available', ErrorCode.INVALID_REQUEST);
 		}
 
 		const metadata = currentThread.metadata as ClaudeThreadMetadata;
 		if (!metadata.organizationId || !metadata.conversationId) {
-			throw this.handleModelError('Invalid thread metadata', ErrorCode.INVALID_REQUEST);
+			return this.handleModelError('Invalid thread metadata', ErrorCode.INVALID_REQUEST);
 		}
 
 		return metadata;
@@ -178,7 +178,7 @@ export class ClaudeWebModel extends AbstractModel {
 	// Get the current thread or throw an error if none exists
 	private getCurrentThreadSafe(): NonNullable<typeof this.currentThread> {
 		if (!this.currentThread) {
-			throw this.handleModelError('No active thread', ErrorCode.INVALID_REQUEST);
+			return this.handleModelError('No active thread', ErrorCode.INVALID_REQUEST);
 		}
 		return this.currentThread;
 	}
@@ -188,7 +188,7 @@ export class ClaudeWebModel extends AbstractModel {
 		try {
 			const organizationId = await this.getOrganizationId();
 			if (!organizationId) {
-				throw this.handleModelError('Organization ID is required', ErrorCode.INVALID_REQUEST);
+				return this.handleModelError('Organization ID is required', ErrorCode.INVALID_REQUEST);
 			}
 			const conversationId = await this.createConversation(organizationId);
 
@@ -207,7 +207,7 @@ export class ClaudeWebModel extends AbstractModel {
 
 			await this.saveThread();
 		} catch (error) {
-			throw this.handleModelError('Error initializing new thread', ErrorCode.METADATA_INITIALIZATION_ERROR, undefined, error);//TODO check throwing
+			return this.handleModelError('Error initializing new thread', ErrorCode.METADATA_INITIALIZATION_ERROR, undefined, error);
 			//   console.error('Error initializing new thread:', error);
 			//   throw error;
 		}
@@ -226,18 +226,31 @@ export class ClaudeWebModel extends AbstractModel {
 				this.organizationId = (thread.metadata as ClaudeThreadMetadata).organizationId;
 			}
 		} else {
-			throw this.handleModelError(`Thread ${threadId} not found`, ErrorCode.INVALID_THREAD_ID);
+			return this.handleModelError(`Thread ${threadId} not found`, ErrorCode.INVALID_THREAD_ID);
 		}
 	}
 
 	// Send a message to Claude
+	// Update signature to accept images array
 	protected async doSendMessage(params: {
 		prompt: string;
-		image?: File;
+		images?: File[]; // <-- FIX: Update signature
 		signal?: AbortSignal;
 		style_key?: string;
 		onEvent: (event: StatusEvent) => void;
 	}): Promise<void> {
+		// --- Check Image Count ---
+		if (params.images && params.images.length > 1) {
+			// With the improved handleModelError, we don't need to return as it always throws
+			this.handleModelError(
+				'Claude Web only supports one image per message.',
+				ErrorCode.UPLOAD_AMOUNT_EXCEEDED,
+				params
+			);
+			// The code below is unreachable since handleModelError always throws
+		}
+		// --- End Check ---
+
 		try {
 			params.onEvent({
 				type: 'UPDATE_ANSWER',
@@ -252,36 +265,81 @@ export class ClaudeWebModel extends AbstractModel {
 			const metadata = this.getClaudeMetadata();
 
 			// Add user message to thread
+			// Handle the first image if provided
+			let imageFile: File | undefined;
+			if (params.images && params.images.length > 0) {
+				if (params.images.length > 1) {
+					console.warn("ClaudeWebModel currently only supports one image per message. Using the first image.");
+				}
+				imageFile = params.images[0];
+			}
+
+			// Add user message to thread, including image data URL if present
 			const userMessage = this.createMessage('user', params.prompt);
-			if (params.image) {
+			if (imageFile) {
 				userMessage.metadata = {
-					imageDataUrl: await this.fileToDataUrl(params.image)
+					...(userMessage.metadata || {}), // Preserve existing metadata if any
+					imageDataUrl: await this.fileToDataUrl(imageFile)
 				};
 			}
 			currentThread.messages.push(userMessage);
 
 			// Prepare attachments if there's an image
-			let files: any = {};
-			if (params.image) {
+			// Prepare attachments if an image was processed
+			let files: any = {}; // To store the upload response
+			let attachmentsPayload: any[] = []; // Payload for the completion request
+			if (imageFile) {
 				const formData = new FormData();
-				formData.append('file', params.image);
-				// formData.append('orgUuid', metadata.organizationId);
+				formData.append('file', imageFile);
+				// formData.append('orgUuid', metadata.organizationId); // Seems unnecessary based on network analysis
 
-				// Upload the image
-				const uploadResp = await fetch(`https://claude.ai/api/${metadata.organizationId}/upload`, {
-					method: 'POST',
-					//   headers: {
-					//     // Don't set Content-Type here, let the browser set it with the boundary
-					//     Cookie: this.sessionKey ? `sessionKey=${this.sessionKey}` : '',
-					//   },
-					//   credentials: 'include',
-					body: formData,
-				});
+				try {
+					// Upload the image
+					const uploadResp = await fetch(`https://claude.ai/api/${metadata.organizationId}/upload`, {
+						method: 'POST',
+						// No Content-Type needed for FormData
+						// No Cookie needed if using credentials: 'include' and browser is logged in
+						// headers: this.getHeaders(), // Might not be needed if relying on browser cookies
+						credentials: 'include', // Crucial for sending cookies
+						body: formData,
+					});
 
-				if (!uploadResp.ok) {
-					throw this.handleModelError('Failed to upload image', ErrorCode.UPLOAD_FAILED, params, uploadResp);
+					if (!uploadResp.ok) {
+						const errorText = await uploadResp.text();
+						return this.handleModelError(
+							`Failed to upload image: ${errorText}`,
+							ErrorCode.UPLOAD_FAILED,
+							params,
+							errorText
+						);
+					}
+					files = await uploadResp.json();
+					if (!files || !files.file_uuid) {
+						return this.handleModelError(
+							"Invalid upload response format",
+							ErrorCode.UPLOAD_FAILED,
+							params
+						);
+					}
+					// Prepare the attachment structure for the completion request
+					attachmentsPayload = [{
+						file_name: files.file_name,
+						file_size: files.file_size,
+						file_type: files.file_type,
+						file_uuid: files.file_uuid,
+						source: "file_upload" // Assuming this is the correct source type
+					}];
+
+				} catch (uploadError) {
+					// With the improved handleModelError, we don't need to return as it always throws
+					this.handleModelError(
+						`Failed to upload image: ${imageFile.name}`,
+						ErrorCode.UPLOAD_FAILED,
+						params,
+						uploadError
+					);
+					// The code below is unreachable since handleModelError always throws
 				}
-				files = await uploadResp.json();
 			}
 			let styles = await this.getStyles(metadata.organizationId);
 			let style = this.findStyleByKey(styles, params.style_key || '')
@@ -297,8 +355,8 @@ export class ClaudeWebModel extends AbstractModel {
 				credentials: 'include',
 				signal: params.signal,
 				body: JSON.stringify({
-					attachments: [],
-					files: (!files || !files.file_uuid) ? [] : [files.file_uuid],
+					attachments: attachmentsPayload, // Use the prepared attachments
+					files: [], // 'files' array seems unused when 'attachments' is used for uploads
 					locale: navigator.language || 'en-US',
 					personalized_styles: style ? [style] : [],
 					prompt: params.prompt,
@@ -330,7 +388,7 @@ export class ClaudeWebModel extends AbstractModel {
 									errorData.error.resetsAt.resetsAtReadable = resetDate.toLocaleString();
 									limitReset = ` Rate limit resets at ${errorData.error.resetsAt.resetsAtReadable}`;
 								}
-								throw this.handleModelError(`Claude rate limit exceeded.${limitReset}`, ErrorCode.RATE_LIMIT_EXCEEDED, params, errorData);
+								return this.handleModelError(`Claude rate limit exceeded.${limitReset}`, ErrorCode.RATE_LIMIT_EXCEEDED, params, errorData);
 								// throw new AIModelError(
 								// 	`Claude rate limit exceeded. ${limitReset}`,
 								// 	ErrorCode.RATE_LIMIT_EXCEEDED
@@ -338,7 +396,7 @@ export class ClaudeWebModel extends AbstractModel {
 							} catch (parseError) {
 								// If we can't parse the nested JSON, just use the original message
 
-								throw this.handleModelError(
+								return this.handleModelError(
 									`Claude rate limit exceeded: ${errorData.error.message}`,
 									ErrorCode.RATE_LIMIT_EXCEEDED,
 									params,
@@ -349,7 +407,7 @@ export class ClaudeWebModel extends AbstractModel {
 					}
 
 					// Handle other error types
-					throw this.handleModelError(
+					return this.handleModelError(
 						`Claude API error: ${JSON.stringify(errorData)}`,
 						ErrorCode.SERVICE_UNAVAILABLE,
 						params
@@ -357,13 +415,13 @@ export class ClaudeWebModel extends AbstractModel {
 				} catch (parseError) {
 					// If we can't parse the error as JSON, fall back to status code and text
 					if (response.status === 429) {
-						throw this.handleModelError(
+						return this.handleModelError(
 							`Claude rate limit exceeded. Please try again later.`,
 							ErrorCode.RATE_LIMIT_EXCEEDED,
 							params
 						);
 					} else {
-						throw this.handleModelError(
+						return this.handleModelError(
 							`Claude API error: ${response.status} - ${errorText.substring(0, 200)}`,
 							ErrorCode.SERVICE_UNAVAILABLE,
 							params
@@ -373,7 +431,7 @@ export class ClaudeWebModel extends AbstractModel {
 			}
 
 			if (!response.body) {
-				throw this.handleModelError('Response body is null', ErrorCode.SERVICE_UNAVAILABLE, params);
+				return this.handleModelError('Response body is null', ErrorCode.SERVICE_UNAVAILABLE, params);
 			}
 
 			// Process the streaming response
@@ -525,7 +583,7 @@ export class ClaudeWebModel extends AbstractModel {
 
 							// Use handleModelError instead of throwing directly
 
-							throw this.handleModelError(
+							return this.handleModelError(
 								`Claude rate limit exceeded.${resetMessage}`,
 								ErrorCode.RATE_LIMIT_EXCEEDED,
 								params ? params : undefined,
@@ -534,7 +592,7 @@ export class ClaudeWebModel extends AbstractModel {
 						} catch (parseError) {
 							// If we can't parse the nested JSON, just use the original message
 
-							throw this.handleModelError(
+							return this.handleModelError(
 								`Claude rate limit exceeded: ${errorData.message}`,
 								ErrorCode.RATE_LIMIT_EXCEEDED,
 								params ? params : undefined,
@@ -543,7 +601,7 @@ export class ClaudeWebModel extends AbstractModel {
 						}
 					} else {
 
-						throw this.handleModelError(
+						return this.handleModelError(
 							errorData.error || errorData.message || 'Unknown Claude error',
 							(errorData.error || errorData.message) ? ErrorCode.SERVICE_UNAVAILABLE : ErrorCode.UNKNOWN_ERROR,
 							params ? params : undefined,
@@ -617,14 +675,14 @@ export class ClaudeWebModel extends AbstractModel {
 
 				// Validate the provided metadata
 				if (!metadata.organizationId || !metadata.conversationId) {
-					throw this.handleModelError(
+					return this.handleModelError(
 						'Invalid metadata provided for sharing',
 						ErrorCode.INVALID_REQUEST
 					);
 				}
 			} else {
 				// No thread loaded and no metadata provided
-				throw this.handleModelError(
+				return this.handleModelError(
 					'No thread loaded and no metadata provided for sharing',
 					ErrorCode.INVALID_REQUEST
 				);
@@ -642,7 +700,7 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to update title: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -656,7 +714,7 @@ export class ClaudeWebModel extends AbstractModel {
 				await this.saveThread();
 			}
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error updating conversation title',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -675,15 +733,15 @@ export class ClaudeWebModel extends AbstractModel {
 	 * @serverOperation This method makes direct API calls to Claude's servers
 	 */
 	@serverOperation
-	async deleteServerThread(conversationIds: [], updateLocalThread: boolean = true, organizationId?: string | undefined): Promise<void> {
+	async deleteServerThreads(conversationIds: string[], updateLocalThread: boolean = true, createNewThreadAfterDelete: boolean = true, organizationId?: string | undefined): Promise<void> {
 		try {
 			if (!organizationId) {
-				// organizationId = this.getClaudeMetadata().organizationId;	
+				// organizationId = this.getClaudeMetadata().organizationId;
 				organizationId = await this.getOrganizationId()
 			}
 
 			if (!organizationId || !conversationIds) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					'Invalid metadata provided for request',
 					ErrorCode.INVALID_REQUEST
 				);
@@ -702,7 +760,7 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to get conversation: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -714,12 +772,12 @@ export class ClaudeWebModel extends AbstractModel {
 
 			if (updateLocalThread) {
 				for (let id of conversationIds) {
-					await this.deleteThread(id);
+					await this.deleteThread(id, createNewThreadAfterDelete);
 				}
 			}
 
 			// if (data.failed) {
-			// 	throw this.handleModelError(
+			// 	return this.handleModelError(
 			// 		`Failed to delete conversation(s) with Id(s): ${data.failed}`,
 			// 		ErrorCode.SERVICE_UNAVAILABLE,
 			// 		undefined,
@@ -734,7 +792,7 @@ export class ClaudeWebModel extends AbstractModel {
 
 			return data;
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error deleting conversation(s)',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -776,14 +834,14 @@ export class ClaudeWebModel extends AbstractModel {
 
 				// Validate the provided metadata
 				if (!metadata.organizationId || !metadata.conversationId) {
-					throw this.handleModelError(
+					return this.handleModelError(
 						'Invalid metadata provided for sharing',
 						ErrorCode.INVALID_REQUEST
 					);
 				}
 			} else {
 				// No thread loaded and no metadata provided
-				throw this.handleModelError(
+				return this.handleModelError(
 					'No thread loaded and no metadata provided for sharing',
 					ErrorCode.INVALID_REQUEST
 				);
@@ -803,7 +861,7 @@ export class ClaudeWebModel extends AbstractModel {
 			if (!response.ok) {
 				// Handle error cases
 				const errorText = await response.text();
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to share conversation: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -816,7 +874,7 @@ export class ClaudeWebModel extends AbstractModel {
 
 			// The response should contain a uuid property
 			if (!shareData.uuid) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					'Share response did not contain a URL',
 					ErrorCode.SERVICE_UNAVAILABLE
 				);
@@ -834,7 +892,7 @@ export class ClaudeWebModel extends AbstractModel {
 			return shareUrl;
 		} catch (error) {
 			// Handle any errors that occurred during the sharing process
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error sharing conversation',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -892,7 +950,7 @@ export class ClaudeWebModel extends AbstractModel {
 		);
 
 		if (!response.ok) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				`Failed to get styles: ${response.status}`,
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -936,14 +994,14 @@ export class ClaudeWebModel extends AbstractModel {
 
 				// Validate the provided metadata
 				if (!metadata.organizationId || !metadata.conversationId) {
-					throw this.handleModelError(
+					return this.handleModelError(
 						'Invalid metadata provided for getting conversation',
 						ErrorCode.INVALID_REQUEST
 					);
 				}
 			} else {
 				// No thread loaded and no metadata provided
-				throw this.handleModelError(
+				return this.handleModelError(
 					'No thread loaded and no metadata provided for getting conversation',
 					ErrorCode.INVALID_REQUEST
 				);
@@ -959,7 +1017,7 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to get conversation: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -970,7 +1028,7 @@ export class ClaudeWebModel extends AbstractModel {
 			return await response.json();
 
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error getting conversation',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -1004,7 +1062,7 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to get conversations data: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -1015,7 +1073,7 @@ export class ClaudeWebModel extends AbstractModel {
 			return await response.json();
 
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error getting conversations',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -1030,7 +1088,7 @@ export class ClaudeWebModel extends AbstractModel {
 	 * @returns The organization data
 	 * @serverOperation This method makes direct API calls to Claude's servers
 	 */
-	@serverOperation	
+	@serverOperation
 	async getOrganizationData(organizationId?: string): Promise<any> {
 		if (!organizationId) {
 			organizationId = await this.getOrganizationId();
@@ -1047,7 +1105,7 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to get organization data: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -1058,7 +1116,7 @@ export class ClaudeWebModel extends AbstractModel {
 			return await response.json();
 
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error getting organization',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -1088,14 +1146,14 @@ export class ClaudeWebModel extends AbstractModel {
 			);
 
 			if (response.status === 403) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					'There is no logged-in Claude account in this browser.',
 					ErrorCode.UNAUTHORIZED
 				);
 			}
 
 			if (!response.ok) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					`Failed to get organization data: ${response.status}`,
 					ErrorCode.SERVICE_UNAVAILABLE,
 					undefined,
@@ -1106,7 +1164,7 @@ export class ClaudeWebModel extends AbstractModel {
 			return await response.json();
 
 		} catch (error) {
-			throw this.handleModelError(
+			return this.handleModelError(
 				'Error getting organization',
 				ErrorCode.SERVICE_UNAVAILABLE,
 				undefined,
@@ -1129,7 +1187,7 @@ export class ClaudeWebModel extends AbstractModel {
 		try {
 			const orgData = await this.getAllOrganizationsData()
 			if (!orgData || !orgData.length) {
-				throw this.handleModelError(
+				return this.handleModelError(
 					'No organizations found for Claude account',
 					ErrorCode.UNAUTHORIZED
 				);

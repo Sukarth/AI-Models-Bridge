@@ -11,6 +11,7 @@
     "build:all": "npm install && npm run build && npm run bundle",
     "copy-to-demo": "node scripts/copy-to-demo.js",
     "build:demo": "npm install && npm run build && npm run bundle && npm run copy-to-demo",
+    "build:demoA": "npm run build && npm run bundle && npm run copy-to-demo",
     "test": "jest",
     "prepublishOnly": "npm run build:all"
   },

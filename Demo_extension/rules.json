@@ -74,5 +74,69 @@
       "urlFilter": "https://copilot.microsoft.com/*",
       "resourceTypes": ["main_frame", "sub_frame"]
     }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://gemini.google.com"
+        },
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://gemini.google.com/"
+        },
+        {
+          "header": "sec-fetch-site",
+          "operation": "set",
+          "value": "same-origin"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "https://gemini.google.com/*",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "main_frame",
+        "sub_frame"
+      ]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://chat.deepseek.com"
+        },
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://chat.deepseek.com/"
+        },
+        {
+          "header": "sec-fetch-site",
+          "operation": "set",
+          "value": "same-origin"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "https://chat.deepseek.com/*",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "main_frame",
+        "sub_frame"
+      ]
+    }
   }
 ]

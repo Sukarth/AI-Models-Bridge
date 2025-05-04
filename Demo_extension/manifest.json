@@ -7,13 +7,18 @@
     "default_popup": "popup.html",
     "default_icon": {}
   },
+  "background": {
+    "service_worker": "dist/background.bundle.js",
+    "type": "module"
+  },
   "permissions": [
     "storage",
     "declarativeNetRequest",
     "cookies",
     "scripting",
     "tabs",
-    "windows"
+    "windows",
+    "webRequest"
   ],
   "host_permissions": [
     "https://*.openai.com/*",
@@ -26,7 +31,8 @@
     "https://copilot.microsoft.com/*",
     "wss://copilot.microsoft.com/*",
     "https://*.microsoft.com/*",
-    "https://*.bing.com/*"
+    "https://*.bing.com/*",
+    "https://*.deepseek.com/*"
   ],
   "declarative_net_request": {
     "rule_resources": [
@@ -36,5 +42,18 @@
         "path": "rules.json"
       }
     ]
-  }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/sha3_wasm_bg.7b9ca65ddd.wasm"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

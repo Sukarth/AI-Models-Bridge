@@ -5,7 +5,9 @@
   "main": "popup.js",
   "scripts": {
     "build": "npm install && webpack",
-    "dev": "cd ../Library && npm run build:demo && cd ../Demo_extension && npm run build"
+    "buildA": "webpack",
+    "dev": "cd ../Library && npm run build:demo && cd ../Demo_extension && npm run build",
+    "devA": "cd ../Library && npm run build:demoA && cd ../Demo_extension && npm run buildA"
   },
   "keywords": [],
   "author": "Sukarth Acharya",

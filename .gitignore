@@ -5,9 +5,8 @@
 .hintrc
 /library/node_modules/
 /library/dist/
+/library/dist_old/
 /Demo_extension/node_modules/
-/Demo_extension/dist/
-/Demo_extension/lib
 /Demo_extension/_metadata
 *.log
 .DS_Store
@@ -20,3 +19,5 @@
 *.njsproj
 *.sln
 *.sw?
+.qodo
+.cursorignore

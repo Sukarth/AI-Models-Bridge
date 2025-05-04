@@ -16,6 +16,8 @@ export * from './utils/auth';
 export * from './models/gemini-web';
 export * from './models/bing-copilot-web';
 export * from './models/claude-web';
+export * from './models/perplexity-web';
+export * from './models/deepseek-web'; // Added Deepseek export
 // export * from './models/baichuan-web';
 // export * from './models/openrouter';
 // export * from './models/gemini-api';

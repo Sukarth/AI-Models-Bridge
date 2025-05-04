@@ -1,7 +1,9 @@
 const {
-  BardModel,
-  BingModel,
+  GeminiWebModel,
+  BingWebModel,
   ClaudeWebModel,
+  PerplexityWebModel,
+  DeepseekWebModel, // <-- Add DeepseekWebModel import
   AIModelError,
   ErrorCode,
   configureAuth,
@@ -18,15 +20,48 @@ const chatContainer = document.getElementById("chat-container");
 const loadConversationsBtn = document.getElementById("load-conversations");
 const conversationsList = document.getElementById("conversations-list");
 const newThreadBtn = document.getElementById("new-thread-btn");
-const imageUploadBtn = document.getElementById("image-upload-btn");
 const imagePreview = document.getElementById("image-preview");
 const bingModeToggle = document.createElement("div");
-const claudeStylesContainer = document.getElementById("claude-styles-container");
+const deepseekToggles = document.createElement("div"); // Add Deepseek search toggle
+const claudeStylesContainer = document.getElementById(
+  "claude-styles-container"
+);
 const claudeStyleSelect = document.getElementById("claude-style-select");
 const editTitleBtn = document.getElementById("edit-title-btn");
 const shareConversationBtn = document.createElement("button");
 const threadTitleContainer = document.getElementById("thread-title-container");
 const deleteConversationBtn = document.createElement("button");
+const unshareConversationBtn = document.createElement("button");
+const getConvoDataBtn = document.createElement("button"); // New button for Get Conversation Data
+const perplexityOptionsContainer = document.getElementById(
+  "perplexity-options-container"
+);
+const perplexityModelSelect = document.getElementById(
+  "perplexity-model-select"
+);
+const perplexityFocusSelect = document.getElementById(
+  "perplexity-focus-select"
+);
+const perplexitySourcesContainer = document.getElementById(
+  "perplexity-sources-container"
+);
+const perplexitySourcesCheckboxes = document.getElementById(
+  "perplexity-sources-checkboxes"
+);
+
+const fileUploadBtn = document.getElementById('file-upload-btn');
+
+function updateFileInputAccept() {
+  const model = modelSelect.value;
+  if (model === 'gemini-web' || model === 'bing-web') {
+    fileUploadBtn.setAttribute('accept', 'image/*');
+  } else {
+    fileUploadBtn.removeAttribute('accept'); // Allow any file
+  }
+}
+
+modelSelect.addEventListener('change', updateFileInputAccept);
+window.addEventListener('DOMContentLoaded', updateFileInputAccept);
 
 shareConversationBtn.id = "share-conversation-btn";
 shareConversationBtn.className = "icon-btn";
@@ -40,9 +75,23 @@ deleteConversationBtn.title = "Delete conversation";
 deleteConversationBtn.innerHTML = "🗑️";
 deleteConversationBtn.style.display = "none"; // Hide by default
 
+unshareConversationBtn.className = "icon-btn";
+unshareConversationBtn.id = "perplexity-private-btn";
+unshareConversationBtn.title = "Make conversation private";
+unshareConversationBtn.innerHTML = "🔒";
+unshareConversationBtn.style.display = "none"; // Hide by default
+
+getConvoDataBtn.id = "get-convo-data-btn";
+getConvoDataBtn.className = "icon-btn";
+getConvoDataBtn.title = "Get Conversation Data (Log to Console)";
+getConvoDataBtn.innerHTML = "📊"; // Example icon
+getConvoDataBtn.style.display = "none"; // Hide by default
+
 if (threadTitleContainer) {
   threadTitleContainer.appendChild(shareConversationBtn);
+  threadTitleContainer.appendChild(unshareConversationBtn);
   threadTitleContainer.appendChild(deleteConversationBtn);
+  threadTitleContainer.appendChild(getConvoDataBtn); // Add the new button
 }
 
 bingModeToggle.id = "bing-mode-toggle";
@@ -60,10 +109,52 @@ bingModeToggle.innerHTML = `
   </div>
 `;
 
+deepseekToggles.id = "deepseek-toggles";
+deepseekToggles.className = "hidden";
+deepseekToggles.innerHTML = `
+  <div class="deepseek-toggle-row" style="display: flex; gap: 16px; justify-content: space-between;">
+    <div class="mode-toggle-container" style="flex:1;">
+      <label class="mode-toggle" style="width:100%;">
+        <span>Search:</span>
+        <select id="deepseek-search-select" style="margin-left: 6px;">
+          <option value="enabled" selected>Enabled</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        <span class="mode-info" title="Enable or disable Deepseek's internet search features">ⓘ</span>
+      </label>
+    </div>
+    <div class="mode-toggle-container" style="flex:1; text-align:right;">
+      <label class="mode-toggle" style="width:100%;">
+        <span>Mode:</span>
+        <select id="deepseek-mode-select" style="margin-left: 6px;">
+          <option value="chat" selected>Chat</option>
+          <option value="reasoning">Reasoning</option>
+        </select>
+        <span class="mode-info" title="Chat is conversational, Reasoning is more analytical">ⓘ</span>
+      </label>
+    </div>
+  </div>
+`;
+
+document.addEventListener("change", (event) => {
+  if (event.target && event.target.id === "deepseek-mode-select") {
+    chrome.storage.local.set({ deepseekMode: event.target.value });
+  }
+  if (event.target && event.target.id === "deepseek-search-select") {
+    chrome.storage.local.set({ deepseekSearch: event.target.value });
+  }
+});
+
+// --- Ensure old reasoning logic is removed ---
+// Event listener for the old global #toggle-reasoning-btn (should be gone)
 const inputContainer = document.querySelector(".input-container");
 if (inputContainer) {
   inputContainer.insertBefore(
     bingModeToggle,
+    document.querySelector(".button-container")
+  );
+  inputContainer.insertBefore(
+    deepseekToggles,
     document.querySelector(".button-container")
   );
 } else {
@@ -71,17 +162,22 @@ if (inputContainer) {
   const promptContainer = promptInput.parentElement;
   if (promptContainer) {
     promptContainer.insertBefore(bingModeToggle, promptInput);
+    promptContainer.insertBefore(deepseekToggles, promptInput);
   }
 }
 
 // Store the current model instance and selected image
 let currentModel = null;
-let selectedImage = null;
+let selectedImages = []; // Changed from selectedImage = null
 let currentThreadId = null;
 let claudeStyles = [];
 let selectedStyleKey = "";
 let currentStyleKey = null;
 let bingMode = null;
+let perplexitySelectedModel = null;
+let perplexitySelectedFocus = "internet"; // Default focus
+let perplexitySelectedSources = ["web"]; // Default source
+
 
 // auth config settings to notify when auth token is refreshed
 configureAuth({ notifyTokenRefresh: true });
@@ -141,40 +237,33 @@ function showToast(message, type = "info", duration = 3000) {
 function updateThreadTitle(title) {
   const threadTitleElement = document.getElementById("current-thread-title");
   if (threadTitleElement) {
-    threadTitleElement.textContent = title || "New Conversation";
-    threadTitleElement.style.display = "";
-    editTitleBtn.style.display = "";
-  }
-}
+    let displayTitle = title || "New Conversation";
+    let displayEmoji = "";
 
-// Function to update API key container visibility based on selected model
-function updateApiKeyContainer() {
-  const selectedModel = modelSelect.value;
-
-  // Reset styles when changing models
-  claudeStylesContainer.classList.add("hidden");
-  bingModeToggle.classList.add("hidden");
-  claudeStyleSelect.innerHTML = '';
-
-  if (selectedModel === "claude") {
-    apiKeyContainer.classList.add("hidden");
-    // apiKeyInput.placeholder = "Enter Claude Session Key (optional)";
-
-    // Show Claude styles container
-    claudeStylesContainer.classList.remove("hidden");
-
-    // Load Claude styles if we have a model
-    if (currentModel) {
-      loadClaudeStyles();
+    // Check for Gemini and emoji in metadata
+    if (
+      currentModel instanceof GeminiWebModel &&
+      currentModel.currentThread?.metadata?.emoji
+    ) {
+      displayEmoji = currentModel.currentThread.metadata.emoji;
+      // Ensure title doesn't already have the emoji prepended from somewhere else
+      if (displayTitle.startsWith(displayEmoji + " ")) {
+        // Title already includes emoji, use as is
+      } else {
+        displayTitle = `${displayEmoji} ${displayTitle}`;
+      }
     }
-  } else if (selectedModel === "bing") {
-    apiKeyContainer.classList.add("hidden");
-    bingModeToggle.classList.remove("hidden");
-  } else if (selectedModel === "bard") {
-    apiKeyContainer.classList.add("hidden");
-  } else {
-    apiKeyContainer.classList.remove("hidden");
-    apiKeyInput.placeholder = "Enter API Key";
+
+    threadTitleElement.textContent = displayTitle;
+
+    // Show/hide title element based on whether a title exists (or it's the default)
+    // And only show edit button if a real thread is loaded
+    if (title && currentThreadId) {
+      threadTitleElement.style.display = "";
+      // Edit button visibility is handled by updateButtonVisibility
+    } else {
+      threadTitleElement.style.display = "none"; // Hide if no title (e.g., new thread)
+    }
   }
 }
 
@@ -194,22 +283,23 @@ async function initUI() {
     modelSelect.value = result.selectedModel;
   }
 
-  updateApiKeyContainer();
+  const { deepseekMode, deepseekSearch } = await chrome.storage.local.get([
+    "deepseekMode",
+    "deepseekSearch",
+  ]);
+
+  const modeSelect = document.getElementById("deepseek-mode-select");
+  if (modeSelect && deepseekMode) {
+    modeSelect.value = deepseekMode;
+  }
+  const searchSelect = document.getElementById("deepseek-search-select");
+  if (searchSelect && deepseekSearch) {
+    searchSelect.value = deepseekSearch;
+  }
+
+  await updateUI();
 
   // Add event listeners
-  // In the modelSelect event listener (around line 80)
-  modelSelect.addEventListener("change", async () => {
-    updateApiKeyContainer();
-    await chrome.storage.local.set({ selectedModel: modelSelect.value });
-    // Reset current model when changing model type
-    currentModel = null;
-    currentThreadId = null;
-    await chrome.storage.local.remove(["currentThreadId"]);
-    clearChatDisplay();
-
-    // Close conversations list if open
-    conversationsList.classList.add("hidden");
-  });
 
   // Add event listener for Claude style selection
   claudeStyleSelect.addEventListener("change", async () => {
@@ -217,17 +307,76 @@ async function initUI() {
     await chrome.storage.local.set({ claudeStyleKey: currentStyleKey });
   });
 
+  // Add event listeners for Perplexity options
+  perplexityModelSelect.addEventListener("change", () => {
+    perplexitySelectedModel = perplexityModelSelect.value;
+    // Optionally save to storage if needed: await chrome.storage.local.set({ perplexityModel: perplexitySelectedModel });
+  });
+
+  // Use event delegation for source buttons
+  perplexitySourcesCheckboxes.addEventListener("click", (event) => {
+    const toggleLabel = event.target.closest(".toggle-switch-label");
+    if (toggleLabel) {
+      const checkbox = toggleLabel.querySelector('input[type="checkbox"]');
+      if (checkbox) {
+        const source = checkbox.value;
+
+        // Toggle checkbox state
+        checkbox.checked = !checkbox.checked;
+
+        if (checkbox.checked) {
+          // Add to selected sources
+          if (!perplexitySelectedSources.includes(source)) {
+            perplexitySelectedSources.push(source);
+          }
+          // Add active class for styling
+          toggleLabel.classList.add("active");
+        } else {
+          // Remove from selected sources
+          perplexitySelectedSources = perplexitySelectedSources.filter(
+            (s) => s !== source
+          );
+          // Remove active class
+          toggleLabel.classList.remove("active");
+        }
+
+        // If no sources selected, writing mode is implied
+        perplexitySelectedFocus =
+          perplexitySelectedSources.length > 0 ? "internet" : "writing";
+
+        // console.log("Selected Perplexity Sources:", perplexitySelectedSources);
+        // console.log("Search Focus:", perplexitySelectedFocus);
+      }
+    }
+  });
+
   apiKeyInput?.addEventListener("change", async () => {
     await chrome.storage.local.set({ apiKey: apiKeyInput.value });
   });
 
+  modelSelect.addEventListener("change", updateUI);
+  fileUploadBtn.addEventListener("change", handleFileUpload);
   sendButton.addEventListener("click", sendMessage);
+  // Add event listener for toggling per-message reasoning sections using event delegation
+  chatContainer.addEventListener('click', function (event) {
+    const header = event.target.closest('.message-reasoning-header');
+    if (header) {
+      const container = header.closest('.message-reasoning-container');
+      if (container) {
+        container.classList.toggle('collapsed');
+      }
+    }
+  });
   loadConversationsBtn.addEventListener("click", loadThreadsList);
   newThreadBtn.addEventListener("click", createNewThread);
-  imageUploadBtn.addEventListener("change", handleImageUpload);
   editTitleBtn.addEventListener("click", showTitleEditForm);
   shareConversationBtn.addEventListener("click", shareConversation);
   deleteConversationBtn.addEventListener("click", confirmDeleteConversation);
+  unshareConversationBtn.addEventListener("click", unshareConversation);
+  getConvoDataBtn.addEventListener(
+    "click",
+    getConversationDataForCurrentThread
+  ); // Add listener for new button
 
   // Listen for auth events
   document.addEventListener(
@@ -263,6 +412,162 @@ async function initUI() {
     // Only load threads list if no current thread
     await loadThreadsList();
   }
+
+  updateFileInputAccept();
+}
+
+// async function updateModelAndUIState() {
+//   const selectedModel = modelSelect.value;
+//   const apiKey = apiKeyInput?.value || "";
+
+//   updateApiKeyContainer();
+//   await chrome.storage.local.set({ selectedModel: selectedModel });
+//   // Reset current model when changing model type
+//   currentModel = null;
+//   currentThreadId = null;
+//   await chrome.storage.local.remove(["currentThreadId"]);
+//   clearChatDisplay();
+
+//   if (currentModel instanceof ClaudeWebModel) {
+//     editTitleBtn.style.display = "";
+//     shareConversationBtn.style.display = "";
+//     deleteConversationBtn.style.display = "";
+//   } else if (currentModel instanceof PerplexityWebModel) {
+//     editTitleBtn.style.display = "";
+//     shareConversationBtn.style.display = "";
+//     deleteConversationBtn.style.display = "";
+//     unshareConversationBtn.style.display = "";
+//   } else {
+//     editTitleBtn.style.display = "none";
+//     shareConversationBtn.style.display = "none";
+//     deleteConversationBtn.style.display = "none";
+//     unshareConversationBtn.style.display = "none";
+//   }
+
+//   // Close conversations list if open
+//   conversationsList.classList.add("hidden");
+// }
+
+// Function to update UI based on selected model
+async function updateUI() {
+  const selectedModel = modelSelect.value;
+
+  await chrome.storage.local.set({ selectedModel: selectedModel });
+
+  currentThreadId = null;
+  await chrome.storage.local.remove(["currentThreadId"]);
+  currentModel = createModel();
+
+  conversationsList.classList.add("hidden");
+
+
+  // Reset styles when changing models
+  claudeStylesContainer.classList.add("hidden");
+  bingModeToggle.classList.add("hidden");
+  deepseekToggles.classList.add("hidden"); // Hide Deepseek toggle by default
+  claudeStyleSelect.innerHTML = "";
+  perplexityOptionsContainer.classList.add("hidden"); // Hide Perplexity options by default
+
+  if (selectedModel === "claude-web") {
+    apiKeyContainer.classList.add("hidden");
+    claudeStylesContainer.classList.remove("hidden");
+    if (currentModel) {
+      loadClaudeStyles();
+    }
+  } else if (selectedModel === "bing-web") {
+    apiKeyContainer.classList.add("hidden");
+    bingModeToggle.classList.remove("hidden");
+  } else if (selectedModel === "gemini-web") {
+    apiKeyContainer.classList.add("hidden");
+  } else if (selectedModel === "perplexity-web") {
+    apiKeyContainer.classList.add("hidden");
+    perplexityOptionsContainer.classList.remove("hidden");
+    if (currentModel) {
+      loadPerplexityOptions(); // Function to load models and sources
+    } // Closes 'if (currentModel)'
+  } else if (selectedModel === "deepseek-web") {
+    apiKeyContainer.classList.add("hidden");
+    deepseekToggles.classList.remove("hidden"); // Show Deepseek mode toggle
+  } // <-- Add missing closing brace for 'else if (selectedModel === "perplexity-web")'
+
+
+  // Reset model and thread state
+  // currentModel = null; // Will be recreated by createModel() shortly if needed
+  // currentThreadId = null;
+  // await chrome.storage.local.remove(["currentThreadId"]);
+
+
+  clearChatDisplay();
+  updateThreadTitle(null); // Reset title when UI updates for a model change
+  updateButtonVisibility(); // Update buttons for the new state (no thread)
+}
+
+// Function to manage visibility of action buttons based on model and thread state
+function updateButtonVisibility() {
+  console.log(
+    "Updating button visibility. Model:",
+    currentModel?.getName(),
+    "Thread ID:",
+    currentThreadId
+  );
+
+  // Default: Hide all buttons initially
+  editTitleBtn.style.display = "none";
+  shareConversationBtn.style.display = "none";
+  deleteConversationBtn.style.display = "none";
+  unshareConversationBtn.style.display = "none";
+  getConvoDataBtn.style.display = "none";
+
+  // Determine if a thread is loaded and has messages
+  const isThreadLoaded = !!currentThreadId;
+  const hasMessages =
+    currentModel?.currentThread?.messages &&
+    currentModel.currentThread.messages.length > 0;
+  // Often buttons appear after the first exchange (2+ messages)
+  const hasMultipleMessages =
+    currentModel?.currentThread?.messages &&
+    currentModel.currentThread.messages.length >= 2;
+
+  console.log(
+    `isThreadLoaded: ${isThreadLoaded}, hasMessages: ${hasMessages}, hasMultipleMessages: ${hasMultipleMessages}`
+  );
+
+  if (isThreadLoaded) {
+    if (currentModel instanceof ClaudeWebModel) {
+      editTitleBtn.style.display = hasMessages ? "" : "none"; // Show edit if thread exists
+      shareConversationBtn.style.display = hasMultipleMessages ? "" : "none"; // Show share after first exchange
+      deleteConversationBtn.style.display = hasMessages ? "" : "none"; // Show delete if thread exists
+      getConvoDataBtn.style.display = hasMessages ? "" : "none"; // Show get data if thread exists for Claude
+    } else if (currentModel instanceof PerplexityWebModel) {
+      editTitleBtn.style.display = hasMessages ? "" : "none";
+      shareConversationBtn.style.display = hasMultipleMessages ? "" : "none";
+      deleteConversationBtn.style.display = hasMessages ? "" : "none";
+      unshareConversationBtn.style.display = hasMultipleMessages ? "" : "none"; // Show unshare after first exchange
+    } else if (currentModel instanceof GeminiWebModel) {
+      editTitleBtn.style.display = hasMessages ? "" : "none"; // Show edit if thread exists
+      shareConversationBtn.style.display = hasMultipleMessages ? "" : "none"; // Show share after first exchange for Gemini
+      unshareConversationBtn.style.display = hasMultipleMessages ? "" : "none"; // Show unshare after first exchange for Gemini
+      deleteConversationBtn.style.display = hasMessages ? "" : "none"; // Show delete if thread exists
+      getConvoDataBtn.style.display = hasMessages ? "" : "none"; // Show get data if thread exists
+    } else if (currentModel instanceof DeepseekWebModel) {
+      // For Deepseek, enable local delete and get all conversations data
+      deleteConversationBtn.style.display = hasMessages ? "" : "none"; // Local delete
+      getConvoDataBtn.style.display = hasMessages ? "" : "none"; // Get all conversations
+      // Edit title and share are not supported by the current implementation
+      editTitleBtn.style.display = hasMessages ? "" : "none"; // Show edit if thread exists
+      shareConversationBtn.style.display = "none";
+      unshareConversationBtn.style.display = "none";
+    }
+  }
+
+  // Log final visibility states
+  console.log("Button Visibility:", {
+    edit: editTitleBtn.style.display,
+    share: shareConversationBtn.style.display,
+    delete: deleteConversationBtn.style.display,
+    unshare: unshareConversationBtn.style.display,
+    getData: getConvoDataBtn.style.display,
+  });
 }
 
 function showTitleEditForm() {
@@ -274,21 +579,55 @@ function showTitleEditForm() {
 
   // Get the current title
   const titleElement = document.getElementById("current-thread-title");
-  const currentTitle = titleElement.textContent || "New Conversation";
+  let currentTitle = titleElement.textContent || "New Conversation";
+
+  // For Gemini, strip emoji from title if present
+  if (
+    currentModel instanceof GeminiWebModel &&
+    currentModel.currentThread?.metadata?.emoji
+  ) {
+    const emoji = currentModel.currentThread.metadata.emoji;
+    currentTitle = currentTitle.replace(`${emoji} `, "");
+  }
 
   // Hide the title and edit button
   titleElement.style.display = "none";
   editTitleBtn.style.display = "none";
 
+  // Explicitly hide other action buttons before showing the edit form
+  shareConversationBtn.style.display = "none";
+  deleteConversationBtn.style.display = "none";
+  unshareConversationBtn.style.display = "none";
+  getConvoDataBtn.style.display = "none";
+
   // Create the edit form
   const titleContainer = document.getElementById("thread-title-container");
   const editForm = document.createElement("div");
   editForm.className = "title-edit-container";
-  editForm.innerHTML = `
-    <input type="text" id="title-input" value="${currentTitle}" placeholder="Enter conversation title">
+
+  // Base HTML for title input
+  let formHTML = `
+    <input type="text" id="title-input" value="${currentTitle}" placeholder="Enter conversation title" style="flex-grow: 1; margin-right: 5px;">
+  `;
+
+  // Add emoji input specifically for Gemini
+  if (currentModel instanceof GeminiWebModel) {
+    // Retrieve current emoji for placeholder/value
+    const currentEmoji = currentModel.currentThread?.metadata?.emoji || "";
+    formHTML += `
+      <input type="text" id="emoji-input" value="${currentEmoji}" placeholder="Emoji" maxlength="2" style="width: 60px; margin-right: 5px; text-align: center;">
+    `;
+  }
+
+  // Add save/cancel buttons
+  formHTML += `
     <button id="save-title-btn" class="btn">Save</button>
     <button id="cancel-title-btn" class="btn">Cancel</button>
   `;
+
+  editForm.innerHTML = formHTML;
+  editForm.style.display = "flex"; // Use flexbox for alignment
+  editForm.style.alignItems = "center";
 
   titleContainer.appendChild(editForm);
 
@@ -325,7 +664,10 @@ function cancelTitleEdit() {
 
   // Show the title and edit button again
   document.getElementById("current-thread-title").style.display = "";
-  editTitleBtn.style.display = "";
+  editTitleBtn.style.display = ""; // Re-show edit button specifically
+
+  // Restore visibility of other buttons using the central function
+  updateButtonVisibility();
 }
 
 async function saveTitle() {
@@ -337,25 +679,40 @@ async function saveTitle() {
     return;
   }
 
-  try {
-    // Show loading state
-    const saveBtn = document.getElementById("save-title-btn");
-    // const originalText = saveBtn.textContent;
-    saveBtn.textContent = "Saving...";
-    saveBtn.disabled = true;
+  // Show loading state
+  const saveBtn = document.getElementById("save-title-btn");
+  const originalText = saveBtn.textContent;
+  saveBtn.textContent = "Saving...";
+  saveBtn.disabled = true;
 
-    // Only proceed if we have a Claude model
-    if (!(currentModel instanceof ClaudeWebModel)) {
-      showToast(
-        "Title editing is only supported for Claude conversations",
-        "error"
-      );
+  try {
+    // Handle title editing for supported models
+    if (
+      currentModel instanceof ClaudeWebModel ||
+      currentModel instanceof PerplexityWebModel ||
+      currentModel instanceof DeepseekWebModel
+    ) {
+      await currentModel.editTitle(newTitle);
+    } else if (currentModel instanceof GeminiWebModel) {
+      const emojiInput = document.getElementById("emoji-input");
+      const emoji = emojiInput ? emojiInput.value.trim() : undefined;
+      await currentModel.editTitle(newTitle, emoji); // Pass emoji to Gemini's method
+
+      // // Store emoji in thread metadata if available
+      // if (currentModel.currentThread && emoji) {
+      //   if (!currentModel.currentThread.metadata) {
+      //     currentModel.currentThread.metadata = {};
+      //   }
+      //   currentModel.currentThread.metadata.emoji = emoji;
+      // }
+    } else {
+      showToast("Title editing is not supported for this model.", "error");
+      // Reset button state
+      saveBtn.textContent = originalText;
+      saveBtn.disabled = false;
       cancelTitleEdit();
       return;
     }
-
-    // Call the editTitle method
-    await currentModel.editTitle(newTitle);
 
     // Update the title in the UI
     updateThreadTitle(newTitle);
@@ -373,13 +730,19 @@ async function saveTitle() {
   } catch (error) {
     console.error("Error updating title:", error);
     showToast(`Failed to update title: ${getErrorMessage(error)}`, "error");
+
+    // Reset button state on error
+    saveBtn.textContent = originalText;
+    saveBtn.disabled = false;
   }
 }
 
 async function createNewThread(showNotification = true) {
   try {
+    console.log("Creating new thread...", showNotification);
     // Close conversations list if open
     conversationsList.classList.add("hidden");
+    console.log("eeeeeeeeeeeee:", currentModel);
 
     if (!currentModel) {
       currentModel = createModel();
@@ -387,24 +750,22 @@ async function createNewThread(showNotification = true) {
 
     await currentModel.initNewThread();
 
+    console.log("New thread created:", currentModel);
+
     if (currentModel.currentThread) {
-      currentThreadId = currentModel.currentThread.id;
+      if (currentModel instanceof DeepseekWebModel) {
+        currentThreadId = currentModel.currentThread.metadata?.conversationId || currentModel.currentThread.id;
+      } else {
+        currentThreadId = currentModel.currentThread.id;
+      }
       await chrome.storage.local.set({ currentThreadId });
-      updateThreadTitle(currentModel.currentThread.title);
+      updateThreadTitle(null); // Set title to default for new thread
+    } else {
+      updateThreadTitle(null); // Ensure title is reset even if thread creation failed internally
     }
 
     clearChatDisplay();
-
-    // // Show/hide edit and share buttons based on model type
-    // if (currentModel instanceof ClaudeWebModel) {
-    //   editTitleBtn.style.display = "";
-    //   shareConversationBtn.style.display = "";
-    // } else {
-    // Always hide edit and share buttons for new threads
-    editTitleBtn.style.display = "none";
-    shareConversationBtn.style.display = "none";
-    deleteConversationBtn.style.display = "none";
-    // }
+    updateButtonVisibility(); // Update buttons for the new thread state
 
     if (showNotification) {
       // Replace the notification with a welcome message
@@ -439,6 +800,10 @@ async function loadClaudeStyles() {
 
     // Add default styles
     if (stylesData.defaultStyles && Array.isArray(stylesData.defaultStyles)) {
+      const option = document.createElement("option");
+      option.disabled = true;
+      option.textContent = "───Styles───";
+      claudeStyleSelect.appendChild(option);
       stylesData.defaultStyles.forEach((style) => {
         const option = document.createElement("option");
         option.value = style.key;
@@ -511,48 +876,79 @@ function displayThreadMessages() {
   }
 
   clearChatDisplay();
+  // Update title (including potential Gemini emoji)
   updateThreadTitle(currentModel.currentThread.title);
 
   const messages = currentModel.currentThread.messages;
 
-  // Show edit and share buttons only for Claude model
-  if (currentModel instanceof ClaudeWebModel && messages && messages.length >= 2) {
-    editTitleBtn.style.display = "";
-    shareConversationBtn.style.display = "";
-    deleteConversationBtn.style.display = "";
-  } else {
-    editTitleBtn.style.display = "none";
-    shareConversationBtn.style.display = "none";
-    deleteConversationBtn.style.display = "none";
-  }
+  // Update button visibility based on loaded thread state
+  updateButtonVisibility();
 
   if (messages && messages.length > 0) {
-    messages.forEach((message) => {
+    messages.forEach((message, index) => { // Add index
       const messageElement = document.createElement("div");
-      messageElement.className = `message ${
-        message.role === "user" ? "user-message" : "assistant-message"
-      }`;
+      messageElement.className = `message ${message.role === "user" ? "user-message" : "assistant-message"}`;
+      messageElement.dataset.messageIndex = index; // Optional ID
 
-      // Check if this message has an image
-      if (
-        message.role === "user" &&
-        (message.metadata?.imageDataUrl || message.metadata?.imageUrl)
-      ) {
-        // Create HTML with image and text - use dataUrl if available, otherwise fall back to imageUrl
-        const imageSource =
-          message.metadata.imageDataUrl || message.metadata.imageUrl;
-        // try to show/lo image, but if it fails, show 'image unavailable' SVG on failure to load image
-        messageElement.innerHTML = `
-          <div class="message-image-container">
-            <img src="${imageSource}" alt="User uploaded image" class="message-image" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';">
-          </div>
-          <div class="message-text">${message.content}</div>
-        `;
+      // === Render Assistant Message with potential Reasoning ===
+      if (message.role === 'assistant') {
+        // --- Reasoning Section ---
+        if (message.reasoningContent) {
+          const reasoningContainer = document.createElement('div');
+          // Unique ID for targeting during updates
+          reasoningContainer.id = `reasoning-${message.id || index}`;
+          reasoningContainer.className = 'message-reasoning-container collapsed'; // Start collapsed
+
+          const reasoningTime = message.metadata?.reasoningTimeSecs;
+          const timeText = reasoningTime ? `Thought for ${reasoningTime} second${reasoningTime === 1 ? '' : 's'}` : 'Thinking Process';
+
+          reasoningContainer.innerHTML = `
+               <div class="message-reasoning-header">
+                 <span class="thought-icon">🧠</span>
+                 <span>${timeText}</span>
+                 <span class="toggle-icon">▼</span>
+               </div>
+               <div class="message-reasoning-content">
+                 ${message.reasoningContent}
+               </div>
+              `;
+          // Prepend reasoning container to the message element
+          messageElement.appendChild(reasoningContainer);
+        }
+
+        // --- Main Content Section ---
+        const textContentDiv = document.createElement('div');
+        textContentDiv.className = 'message-text-content';
+        // Use innerHTML to render potential markdown/formatting later if needed
+        textContentDiv.innerHTML = message.content;
+        messageElement.appendChild(textContentDiv);
+
+        // === Render User Message (handling images) ===
+      } else if (message.role === 'user') {
+        if (message.metadata?.imageDataUrl || message.metadata?.imageUrl) {
+          const imageSource = message.metadata.imageDataUrl || message.metadata.imageUrl;
+          messageElement.innerHTML = `
+              <div class="message-image-container">
+                <img src="${imageSource}" alt="User uploaded image" class="message-image" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5JbWFnZSB1bmF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';">
+              </div>
+              <div class="message-text-content">${message.content}</div>
+            `;
+        } else {
+          // Simple text message for user
+          const textContentDiv = document.createElement('div');
+          textContentDiv.className = 'message-text-content';
+          textContentDiv.textContent = message.content;
+          messageElement.appendChild(textContentDiv);
+        }
       } else {
-        messageElement.textContent = message.content;
+        // Fallback for system messages or other roles
+        const textContentDiv = document.createElement('div');
+        textContentDiv.className = 'message-text-content';
+        textContentDiv.textContent = message.content;
+        messageElement.appendChild(textContentDiv);
       }
 
-      chatContainer.appendChild(messageElement);
+      chatContainer.appendChild(messageElement); // Add the complete message element
 
       // Add suggested followups if available
       if (
@@ -607,33 +1003,110 @@ function displayThreadMessages() {
 //   }
 // }
 
-// Handle image upload
-function handleImageUpload(event) {
-  const file = event.target.files[0];
-  if (file) {
-    selectedImage = file;
-
-    // Show image preview
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      imagePreview.innerHTML = `
-        <div class="image-preview-container">
-          <img src="${e.target.result}" alt="Selected image" class="preview-image">
-          <button id="remove-image-btn" class="remove-btn">×</button>
-        </div>
-      `;
-
-      // Add remove button functionality
-      document
-        .getElementById("remove-image-btn")
-        .addEventListener("click", () => {
-          imagePreview.innerHTML = "";
-          selectedImage = null;
-          imageUploadBtn.value = "";
-        });
-    };
-    reader.readAsDataURL(file);
+function updateThumbnails() {
+  // Clear the preview area
+  imagePreview.innerHTML = "";
+  if (selectedImages.length === 0) {
+    fileUploadBtn.value = "";
+    imagePreview.classList.add("hidden");
+    return;
   }
+  imagePreview.classList.remove("hidden");
+
+  selectedImages.forEach((file, index) => {
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "image-preview-item";
+    let contentHTML = "";
+
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        contentHTML = `
+        <img src="${e.target.result}" alt="Selected image ${index + 1}" class="preview-image">
+        <div class="file-preview-name">${file.name}</div>
+        `;
+        renderPreview();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      contentHTML = `
+        <div class="file-preview-icon">📄</div>
+        <div class="file-preview-name">${file.name}</div>
+      `;
+      renderPreview();
+    }
+
+    function renderPreview() {
+      previewContainer.innerHTML = `
+        ${contentHTML}
+        <button class="remove-btn" data-index="${index}" title="Remove file">&times;</button>
+      `;
+      // Attach remove event and re-render on removal
+      previewContainer.querySelector(".remove-btn").onclick = () => {
+        selectedImages.splice(index, 1);
+        updateThumbnails();
+      };
+    }
+
+    imagePreview.appendChild(previewContainer);
+  });
+}
+
+// Handle file upload (multiple files, max 4)
+function handleFileUpload(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  let currentCount = selectedImages.length;
+  const filesToAdd = Array.from(files);
+
+  if (currentCount + filesToAdd.length > 4) {
+    showToast("Maximum of 4 files allowed.", "error");
+    fileUploadBtn.value = "";
+    return;
+  }
+
+  const model = modelSelect.value;
+  const onlyImages = model === "gemini-web" || model === "bing-web";
+
+  filesToAdd.forEach((file) => {
+    if (onlyImages && !file.type.startsWith("image/")) {
+      showToast(`File "${file.name}" is not an image.`, "error");
+      return;
+    }
+    selectedImages.push(file);
+  });
+
+  updateThumbnails();
+
+
+  // For Deepseek, if attachments exist then disable search
+  if (model === "deepseek-web") {
+    const searchSelect = document.getElementById("deepseek-search-select");
+    if (selectedImages.length > 0 && searchSelect) {
+      searchSelect.disabled = true;
+      showToast("Attachments are enabled – disabling search.", "info");
+    } else if (searchSelect) {
+      searchSelect.disabled = false;
+    }
+  }
+
+  // Also, listen to changes on Deepseek search select:
+  const deepseekSearchSelect = document.getElementById("deepseek-search-select");
+  if (deepseekSearchSelect) {
+    deepseekSearchSelect.addEventListener("change", (event) => {
+      // If the user enables search while attachments exist, warn and clear attachments.
+      const selected = deepseekSearchSelect.value;
+      if (selected === "enabled" && selectedImages.length > 0) {
+        showToast("You can't enable search when attachments are added. Clearing attachments.", "error");
+        selectedImages = [];
+        updateThumbnails();
+        // Optionally, clear file input as well:
+        fileUploadBtn.value = "";
+      }
+    });
+  }
+
 }
 
 // In the sendMessage function, add proper error handling
@@ -660,40 +1133,42 @@ async function sendMessage() {
     const userMessageElement = document.createElement("div");
     userMessageElement.className = "message user-message";
 
-    // If there's an image, display it with the message
-    if (selectedImage) {
-      const imageUrl = URL.createObjectURL(selectedImage);
-      userMessageElement.innerHTML = `
-        <div class="message-image-container">
-          <img src="${imageUrl}" alt="User uploaded image" class="message-image">
-        </div>
-        <div class="message-text">${promptInput.value}</div>
-      `;
-    } else {
-      userMessageElement.textContent = promptInput.value;
+    // Display user message with potential images
+    let userMessageHTML = `<div class="message-text">${promptInput.value}</div>`; // Ensure text is always present
+    if (selectedImages.length > 0) {
+      let imagePreviewsHTML = '<div class="message-image-container">'; // Container for image previews
+      selectedImages.forEach((imgFile, index) => {
+        const objectURL = URL.createObjectURL(imgFile); // Create temporary URL for preview
+        imagePreviewsHTML += `<img src="${objectURL}" alt="User uploaded image ${index + 1
+          }" class="message-image">`;
+        // Consider revoking objectURL later: URL.revokeObjectURL(objectURL);
+      });
+      imagePreviewsHTML += "</div>";
+      // Prepend the image container to the message text
+      userMessageHTML = imagePreviewsHTML + userMessageHTML;
     }
+    userMessageElement.innerHTML = userMessageHTML; // Set the combined HTML
 
     chatContainer.appendChild(userMessageElement);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    // Create assistant message placeholder
+    // Create assistant message placeholder with a dedicated content area
     const assistantMessageElement = document.createElement("div");
     assistantMessageElement.className = "message assistant-message";
-    // assistantMessageElement.innerHTML =
-    //   '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    // Add a specific inner element for the text content to avoid replacing the whole message on updates
     assistantMessageElement.innerHTML =
-      '<div class="loading">Thinking...</div>';
+      '<div class="message-text-content"><div class="loading">Thinking...</div></div>';
     chatContainer.appendChild(assistantMessageElement);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-
     promptInput.value = "";
 
-    // Clear image preview and selection
-    if (selectedImage) {
-      imagePreview.innerHTML = "";
-      imagePreview.classList.add("hidden");
-    }
+    // Clear image preview and selection state *before* sending
+    imagePreview.innerHTML = "";
+    imagePreview.classList.add("hidden");
+    const imagesToUpload = [...selectedImages]; // Copy the array to pass to sendMessage
+    selectedImages = []; // Clear the state array
+    fileUploadBtn.value = ""; // Clear the file input visually
 
     console.log("Sending message to model:", prompt);
     console.log("Current model type:", currentModel.getName());
@@ -713,56 +1188,134 @@ async function sendMessage() {
 
     console.log(currentStyleKey);
 
-    await currentModel.sendMessage(prompt, {
-      image: selectedImage,
+    // --- Prepare options for sendMessage ---
+    const messageOptions = {
+      images: imagesToUpload, // Pass the copied array of selected images
       signal: null, // TODO: Implement abort signal
-      mode: bingMode,
-      style_key: currentStyleKey,
+      mode: bingMode, // For Bing
+      style_key: currentStyleKey, // For Claude
+      model: undefined, // For Perplexity
+      searchFocus: undefined, // For Perplexity
+      searchSources: undefined, // For Perplexity
       onEvent: (event) => {
         const assistantMsgCont = document.querySelector(
           ".message.assistant-message:last-of-type"
         );
         switch (event.type) {
           case "UPDATE_ANSWER":
-            if (assistantMsgCont.classList.contains("hidden"))
-              assistantMsgCont.classList.remove("hidden");
-            assistantMessageElement.innerHTML =
-              event.data.text ||
-              '<div class="typing-indicator"><span></span><span></span><span></span></div>';
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            break;
-          case "ERROR":
-            // Display error message in the assistant message element
-            if (!assistantMsgCont.classList.contains("hidden"))
-              assistantMsgCont.classList.add("hidden");
-            const errorMessageElement = document.createElement("div");
-            errorMessageElement.className = "message error-message";
-            errorMessageElement.textContent = `Error: ${event.error.message}`;
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            console.log("Assistant message update:", event.data);
+            // Ensure the message container exists before accessing classList or innerHTML
+            if (assistantMsgCont) {
+              if (assistantMsgCont.classList.contains("hidden")) {
+                assistantMsgCont.classList.remove("hidden");
+              }
+            }
+            // Target the specific inner div ONLY for text content update
+            const textContentDiv = assistantMsgCont?.querySelector('.message-text-content');
+            if (textContentDiv) {
+              textContentDiv.innerHTML =
+                event.data.text || // Update only the text part
+                '<div class="loading">Thinking...</div>'; // Show thinking if text is empty
+            } else if (assistantMsgCont) {
+              // Fallback: If the inner div isn't found, update the whole element (less ideal)
+              console.warn("Could not find .message-text-content to update.");
+              assistantMsgCont.innerHTML =
+                event.data.text || '<div class="loading">Thinking...</div>';
+            }
 
-            // Re-enable send button
-            sendButton.disabled = false;
-            sendButton.textContent = "Send";
+            responseDiv.scrollTop = responseDiv.scrollHeight;
+
+            // --- Live Reasoning Container Update ---
+            if (event.data.reasoningContent !== undefined) {
+              // Find the last assistant message element
+              if (assistantMsgCont) {
+                let reasoningContainer = assistantMsgCont.querySelector('.message-reasoning-container');
+                // Try to get reasoning time from event or from the last message metadata
+                let reasoningTime = event.data.reasoningElapsedSecs;
+                // If not present in event, try to get from the last message metadata
+                // if (!reasoningTime && currentModel?.currentThread?.messages?.length) {
+                //   const lastMsg = currentModel.currentThread.messages[currentModel.currentThread.messages.length - 1];
+                //   reasoningTime = lastMsg?.metadata?.reasoningTimeSecs || lastMsg?.metadata?.reasoningElapsedSecs;
+                // }
+                const timeText = reasoningTime
+                  ? `Thought for ${reasoningTime} second${reasoningTime === 1 ? '' : 's'}`
+                  : 'Reasoning...';
+
+                if (!reasoningContainer && event.data.reasoningContent.trim()) {
+                  // Create and prepend if not present and content is non-empty
+                  reasoningContainer = document.createElement('div');
+                  reasoningContainer.className = 'message-reasoning-container collapsed';
+                  reasoningContainer.innerHTML = `
+                    <div class="message-reasoning-header">
+                      <span class="thought-icon">🧠</span>
+                      <span>${timeText}</span>
+                      <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="message-reasoning-content">${event.data.reasoningContent.trimStart()}</div>
+                  `;
+                  assistantMsgCont.prepend(reasoningContainer);
+                } else if (reasoningContainer) {
+                  // Update content if already present
+                  const contentDiv = reasoningContainer.querySelector('.message-reasoning-content');
+                  if (contentDiv) contentDiv.innerHTML = event.data.reasoningContent;
+                  // Update the header text if reasoningTimeSecs is present
+                  const headerSpan = reasoningContainer.querySelector('.message-reasoning-header span:nth-child(2)');
+                  if (headerSpan) headerSpan.textContent = timeText;
+                  // If reasoning has ended, un-collapse and highlight
+                  if (reasoningTime) {
+                    reasoningContainer.classList.remove('collapsed');
+                  }
+                  reasoningContainer.scrollTop = reasoningContainer.scrollHeight;
+                }
+              }
+            }
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            responseDiv.scrollTop = responseDiv.scrollHeight;
             break;
+
+          case "ERROR":
+            // Find the last assistant message element
+            const lastAssistantMessage = document.querySelector(
+              ".message.assistant-message:last-of-type"
+            );
+            // Hide it if it exists and isn't already hidden
+            if (
+              lastAssistantMessage &&
+              !lastAssistantMessage.classList.contains("hidden")
+            ) {
+              lastAssistantMessage.classList.add("hidden");
+            }
+            // Create and append error message element
+            const errorDiv = document.createElement("div");
+            errorDiv.className = "message error-message";
+            errorDiv.textContent = `Error: ${event.error.message}`;
+            // Ensure chatContainer exists before appending
+            if (chatContainer) {
+              chatContainer.appendChild(errorDiv); // Use the correct variable name 'errorDiv'
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else {
+              console.error("Chat container not found during error handling.");
+            }
+
+            // Re-enable send button (ensure sendButton exists)
+            if (sendButton) {
+              sendButton.disabled = false;
+              sendButton.textContent = "Send";
+            } else {
+              console.error("Send button not found during error handling.");
+            }
+            break;
+
           case "DONE":
             // Re-enable send button
             sendButton.disabled = false;
             sendButton.textContent = "Send";
 
-            // Reset selected image
-            selectedImage = null;
+            // Reset selected images array (already cleared before send, but ensure it's empty)
+            selectedImages = [];
 
-            // Show edit and share buttons if we have at least 2 messages now
-            if (
-              currentModel instanceof ClaudeWebModel &&
-              currentModel.currentThread &&
-              currentModel.currentThread.messages &&
-              currentModel.currentThread.messages.length >= 2
-            ) {
-              editTitleBtn.style.display = "";
-              shareConversationBtn.style.display = "";
-              deleteConversationBtn.style.display = "";
-            }
+            // Update button visibility now that the message exchange is complete
+            updateButtonVisibility();
 
             break;
           case "TITLE_UPDATE":
@@ -775,16 +1328,59 @@ async function sendMessage() {
             break;
         }
       },
-    });
+    };
+
+    // Add Perplexity specific options if applicable
+    if (currentModel instanceof PerplexityWebModel) {
+      messageOptions.model =
+        perplexitySelectedModel || currentModel.defaultModel; // Use selected or default
+
+      // If any sources are selected, use internet focus, otherwise use writing focus
+      perplexitySelectedFocus =
+        perplexitySelectedSources.length > 0 ? "internet" : "writing";
+      messageOptions.searchFocus = perplexitySelectedFocus;
+
+      // Only send sources if we have any selected
+      messageOptions.searchSources =
+        perplexitySelectedSources.length > 0
+          ? perplexitySelectedSources
+          : undefined;
+
+      console.log("Sending Perplexity Options:", {
+        model: messageOptions.model,
+        searchFocus: messageOptions.searchFocus,
+        searchSources: messageOptions.searchSources,
+      });
+    }
+
+    // Add Deepseek specific options if applicable
+    if (currentModel instanceof DeepseekWebModel) {
+      // Get mode (from Deepseek mode select)
+      let deepseekMode = "chat";
+      const modeSelect = document.getElementById("deepseek-mode-select");
+      if (modeSelect) {
+        deepseekMode = modeSelect.value;
+      }
+      // Get search enabled/disabled
+      let searchEnabled = false;
+      const searchSelect = document.getElementById("deepseek-search-select");
+      if (searchSelect) {
+        searchEnabled = searchSelect.value === "enabled";
+      }
+      messageOptions.mode = deepseekMode;
+      messageOptions.searchEnabled = searchEnabled;
+    }
+    // --- End Prepare options ---
+
+    await currentModel.sendMessage(prompt, messageOptions);
   } catch (error) {
     console.error("Error sending message:", error);
 
     // Display error in chat
     const errorElement = document.createElement("div");
     errorElement.className = "message error-message";
-    errorElement.textContent = `Error: ${
-      error.message || "Unknown error occurred"
-    }`;
+    errorElement.textContent = `Error: ${error.message || "Unknown error occurred"
+      }`;
     chatContainer.appendChild(errorElement);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
@@ -819,10 +1415,7 @@ function updateAssistantMessage(messageElement, text) {
 // Load the list of threads
 async function loadThreadsList() {
   try {
-    if (!conversationsList.classList.contains("hidden")) {
-      conversationsList.classList.add("hidden");
-      return;
-    }
+    conversationsList.classList.add("hidden");
 
     if (!currentModel) {
       currentModel = createModel();
@@ -966,23 +1559,24 @@ function formatRelativeTime(timestamp) {
 // Create a model instance based on the selected model
 function createModel() {
   const modelType = modelSelect.value;
+  console.log(modelType);
   const apiKey = apiKeyInput?.value || "";
 
   switch (modelType) {
-    case "chatgpt":
-      if (!apiKey) throw new Error("API key is required for ChatGPT");
-      return new window.AIModelsBridge.ChatGPTApiModel({
-        apiKey,
-        model: "gpt-3.5-turbo",
-      });
+    // case "chatgpt":
+    //   if (!apiKey) throw new Error("API key is required for ChatGPT");
+    //   return new window.AIModelsBridge.ChatGPTApiModel({
+    //     apiKey,
+    //     model: "gpt-3.5-turbo",
+    //   });
 
-    case "bard":
-      return new BardModel();
+    case "gemini-web":
+      return new GeminiWebModel();
 
-    case "bing":
-      return new BingModel();
+    case "bing-web":
+      return new BingWebModel();
 
-    case "claude":
+    case "claude-web":
       // Create Claude model and load styles
       const claudeModel = new ClaudeWebModel();
 
@@ -991,21 +1585,31 @@ function createModel() {
 
       return claudeModel;
 
-    case "openrouter":
-      const modelName =
-        document.getElementById("model-name")?.value || "anthropic/claude-2";
-      return new window.AIModelsBridge.OpenRouterModel({
-        apiKey,
-        model: modelName,
-      });
+    case "perplexity-web":
+      // Create Perplexity model and load options
+      const perplexityModel = new PerplexityWebModel();
+      // Load options after model is created and UI is potentially visible
+      setTimeout(async () => await loadPerplexityOptions(), 0); // Use timeout to ensure UI elements are ready
+      return perplexityModel;
 
-    case "gemini":
-      return new window.AIModelsBridge.GeminiApiModel({
-        apiKey,
-      });
+    case "deepseek-web": // <-- Add case for Deepseek Web
+      return new DeepseekWebModel();
 
-    case "baichuan":
-      return new window.AIModelsBridge.BaichuanWebModel();
+    // case "openrouter":
+    //   const modelName =
+    //     document.getElementById("model-name")?.value || "anthropic/claude-2";
+    //   return new window.AIModelsBridge.OpenRouterModel({
+    //     apiKey,
+    //     model: modelName,
+    //   });
+
+    // case "gemini":
+    //   return new window.AIModelsBridge.GeminiApiModel({
+    //     apiKey,
+    //   });
+
+    // case "baichuan":
+    //   return new window.AIModelsBridge.BaichuanWebModel();
 
     default:
       throw new Error("Unknown model selected");
@@ -1128,9 +1732,16 @@ async function shareConversation() {
     return;
   }
 
-  // Only proceed if we have a Claude model
-  if (!(currentModel instanceof ClaudeWebModel)) {
-    showToast("Sharing is only supported for Claude conversations", "error");
+  // Only proceed if we have a Claude or Perplexity model
+  if (
+    !(currentModel instanceof ClaudeWebModel) &&
+    !(currentModel instanceof PerplexityWebModel) &&
+    !(currentModel instanceof GeminiWebModel)
+  ) {
+    showToast(
+      "Sharing is only supported for Claude, Gemini and Perplexity conversations",
+      "error"
+    );
     return;
   }
 
@@ -1281,10 +1892,16 @@ function confirmDeleteConversation() {
     return;
   }
 
-  // Only proceed if we have a Claude model
-  if (!(currentModel instanceof ClaudeWebModel)) {
-    showToast("Deletion is only supported for Claude conversations", "error");
-    return;
+  // Adjust message based on model capabilities
+  let confirmationMessage =
+    "Are you sure you want to delete this conversation (this will only remove it locally)? This action cannot be undone.";
+  if (
+    !(currentModel instanceof ClaudeWebModel) &&
+    !(currentModel instanceof PerplexityWebModel) &&
+    !(currentModel instanceof GeminiWebModel)
+  ) {
+    confirmationMessage =
+      "Are you sure you want to delete this conversation? This action cannot be undone. This will remove it locally and from the AI model servers.";
   }
 
   // Create modal container
@@ -1321,20 +1938,20 @@ function confirmDeleteConversation() {
   modalBody.className = "modal-body";
 
   const deleteMessage = document.createElement("p");
-  deleteMessage.textContent = "Are you sure you want to delete this conversation? This action cannot be undone.";
-  
+  deleteMessage.textContent = confirmationMessage; // Use the adjusted message
+
   const buttonContainer = document.createElement("div");
   buttonContainer.style.display = "flex";
   buttonContainer.style.justifyContent = "flex-end";
   buttonContainer.style.marginTop = "20px";
   buttonContainer.style.gap = "10px";
-  
+
   const cancelButton = document.createElement("button");
   cancelButton.textContent = "Cancel";
   cancelButton.className = "btn";
   cancelButton.style.backgroundColor = "#9e9e9e";
   cancelButton.onclick = () => document.body.removeChild(modalContainer);
-  
+
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "Delete";
   deleteButton.className = "btn";
@@ -1343,7 +1960,7 @@ function confirmDeleteConversation() {
     document.body.removeChild(modalContainer);
     deleteConversation();
   };
-  
+
   buttonContainer.appendChild(cancelButton);
   buttonContainer.appendChild(deleteButton);
 
@@ -1372,35 +1989,212 @@ async function deleteConversation() {
       throw new Error("No thread metadata available");
     }
 
-    const metadata = currentModel.currentThread.metadata;
-    if (!metadata.organizationId || !metadata.conversationId) {
-      throw new Error("Invalid thread metadata");
+    // Check if the model supports server-side deletion
+    if (typeof currentModel.deleteServerThreads === "function") {
+
+      await currentModel.deleteServerThreads(
+        [currentModel.currentThread.metadata.conversationId],
+        true, // updateLocalThread
+        false // createNewThreadAfterDelete
+      );
+      showToast("Conversation deleted successfully (Server & Local)", "info");
+    } else {
+      // For models without server deletion, just delete locally
+      await currentModel.deleteThread(currentThreadId, false); // Delete locally, don't create new automatically
+      showToast("Conversation deleted successfully (Local Only)", "info");
     }
 
-    // Call the deleteServerThread method
-    await currentModel.deleteServerThread([metadata.conversationId], true);
-
     // Show success message
-    showToast("Conversation deleted successfully", "info");
+    // showToast("Conversation deleted successfully", "info");
 
-    // Reset current thread and create a new one
+    // Reset current thread ID
     currentThreadId = null;
     await chrome.storage.local.remove(["currentThreadId"]);
+
+    // Explicitly create a new thread since we disabled automatic creation
     await createNewThread(false);
+
+    // Update UI with the new thread
+    if (currentModel.currentThread) {
+      currentThreadId = currentModel.currentThread.id;
+      await chrome.storage.local.set({ currentThreadId });
+      updateThreadTitle(currentModel.currentThread.title);
+    }
 
     // Reset button state
     deleteConversationBtn.innerHTML = originalText;
     deleteConversationBtn.disabled = false;
   } catch (error) {
     console.error("Error deleting conversation:", error);
-    showToast(`Failed to delete conversation: ${getErrorMessage(error)}`, "error");
-    
+    showToast(
+      `Failed to delete conversation: ${getErrorMessage(error)}`,
+      "error"
+    );
+
     // Reset button state
     deleteConversationBtn.innerHTML = "🗑️";
     deleteConversationBtn.disabled = false;
   }
 }
 
+async function unshareConversation() {
+  // Only allow if we have a current thread
+  if (!currentModel || !currentThreadId) {
+    showToast("No conversation selected", "error");
+    return;
+  }
+
+  // Only proceed if we have a Perplexity model
+  if (!(currentModel instanceof PerplexityWebModel) && !(currentModel instanceof GeminiWebModel)) {
+    showToast(
+      "This operation is only supported for Perplexity and Gemini conversations",
+      "error"
+    );
+    return;
+  }
+
+  try {
+    // Show loading state
+    const originalText = unshareConversationBtn.innerHTML;
+    unshareConversationBtn.innerHTML = "⏳";
+    unshareConversationBtn.disabled = true;
+
+    // Call the setThreadPrivate method
+    const success = await currentModel.unShareConversation();
+
+    if (success) {
+      showToast("Conversation set to private", "info");
+    } else {
+      showToast("Failed to set conversation to private", "error");
+    }
+
+    // Reset button state
+    unshareConversationBtn.innerHTML = originalText;
+    unshareConversationBtn.disabled = false;
+  } catch (error) {
+    console.error("Error setting conversation to private:", error);
+    showToast(
+      `Failed to set conversation to private: ${getErrorMessage(error)}`,
+      "error"
+    );
+
+    // Reset button state
+    unshareConversationBtn.innerHTML = "🔒";
+    unshareConversationBtn.disabled = false;
+  }
+}
+
+// Function to load Perplexity models and sources into the UI
+function loadPerplexityOptions() {
+  if (!currentModel || !(currentModel instanceof PerplexityWebModel)) {
+    return;
+  }
+
+  try {
+    // --- Populate Models ---
+    const models = currentModel.getModels(); // Assuming getModels() returns the structure from the class
+    perplexityModelSelect.innerHTML = ""; // Clear existing options
+    for (const modelName in models) {
+      const option = document.createElement("option");
+      option.value = modelName; // Use the user-friendly name as the value
+      option.textContent = modelName;
+      perplexityModelSelect.appendChild(option);
+    }
+    // Set default or previously selected model
+    perplexityModelSelect.value =
+      perplexitySelectedModel || currentModel.defaultModel;
+    perplexitySelectedModel = perplexityModelSelect.value; // Update state
+
+    // --- Populate Sources ---
+    const sources = currentModel.getSearchSources();
+    perplexitySourcesCheckboxes.innerHTML = ""; // Clear existing buttons
+
+    // Create a wrapper for better styling
+    const sourcesWrapper = document.createElement("div");
+    sourcesWrapper.className = "sources-wrapper";
+    perplexitySourcesCheckboxes.appendChild(sourcesWrapper);
+
+    sources.forEach((source) => {
+      const label = document.createElement("label");
+      label.className = "toggle-switch-label";
+      if (perplexitySelectedSources.includes(source)) {
+        label.classList.add("active");
+      }
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = source;
+      checkbox.id = `source-${source}`;
+      checkbox.checked = perplexitySelectedSources.includes(source); // Check based on current state
+
+      // Set the label text (capitalized source name)
+      label.textContent = source.charAt(0).toUpperCase() + source.slice(1);
+
+      // Add the hidden checkbox
+      label.appendChild(checkbox);
+
+      sourcesWrapper.appendChild(label);
+    });
+
+    // Set initial focus based on selected sources
+    perplexitySelectedFocus =
+      perplexitySelectedSources.length > 0 ? "internet" : "writing";
+  } catch (error) {
+    console.error("Error loading Perplexity options:", error);
+    showToast("Failed to load Perplexity options", "error");
+  }
+}
 
 // Initialize the UI when the popup is loaded
 document.addEventListener("DOMContentLoaded", initUI);
+
+// Function to get conversation data for the current thread (Gemini specific for now)
+async function getConversationDataForCurrentThread() {
+
+
+  // Check if the current model supports getting conversation data
+  if (!(currentModel instanceof GeminiWebModel) && !(currentModel instanceof ClaudeWebModel) && !(currentModel instanceof DeepseekWebModel)) {
+    showToast("Model not supported for getting conversation data.", "error");
+    return;
+  }
+
+  if (!currentModel || !currentThreadId) {
+    showToast("Please select a conversation first.", "error");
+    return;
+  }
+
+  // Show loading state before the try block
+  const originalText = getConvoDataBtn.innerHTML;
+  getConvoDataBtn.innerHTML = "⏳";
+  getConvoDataBtn.disabled = true;
+
+  try {
+    let data;
+    console.log(`Fetching conversation data for thread: ${currentThreadId} using model: ${currentModel.getName()}`);
+    if (currentModel instanceof DeepseekWebModel) {
+      // For Deepseek, call getAllConversationsData as it's the most relevant implemented method
+      data = await currentModel.getAllConversationsData();
+      console.log("Deepseek All Conversations Data Received:", data);
+    } else {
+      // For Gemini/Claude, assume getConversationData exists (as per original code)
+      data = await currentModel.getConversationData();
+      console.log("Conversation Data Received:", data);
+    }
+
+
+    console.log("Conversation Data Received:", data); // Log the final data object
+    showToast("Conversation data logged to console.", "info");
+
+    getConvoDataBtn.innerHTML = originalText;
+    getConvoDataBtn.disabled = false;
+  } catch (error) {
+    console.error("Error getting conversation data:", error);
+    showToast(
+      `Failed to get conversation data: ${getErrorMessage(error)}`,
+      "error"
+    );
+
+    getConvoDataBtn.innerHTML = "📊";
+    getConvoDataBtn.disabled = false;
+  }
+}

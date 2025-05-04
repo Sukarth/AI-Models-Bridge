@@ -3,7 +3,8 @@ const path = require('path');
 module.exports = {
   mode: 'production',
   entry: {
-    popup: './popup.js'
+    popup: './popup.js',
+    background: './background.js' 
   },
   output: {
     filename: '[name].bundle.js',
