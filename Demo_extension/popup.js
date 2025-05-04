@@ -1117,7 +1117,7 @@ async function sendMessage() {
   try {
     // Disable send button and show loading state
     sendButton.disabled = true;
-    sendButton.innerHTML = '<span class="loading-spinner"></span>';
+    sendButton.innerHTML = '<span class="loading-spinner"></span>Sending...';
 
     // Create model if not already created
     if (!currentModel) {
@@ -1373,6 +1373,13 @@ async function sendMessage() {
     // --- End Prepare options ---
 
     await currentModel.sendMessage(prompt, messageOptions);
+
+    const deepseekSearchSelect = document.getElementById("deepseek-search-select");
+    if (deepseekSearchSelect) {
+      deepseekSearchSelect.disabled = false;
+    }
+
+
   } catch (error) {
     console.error("Error sending message:", error);
 
