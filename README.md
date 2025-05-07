@@ -58,7 +58,7 @@ You can include the bundled library in your browser extension's HTML file:
 <script src="path/to/ai-models-bridge.min.js"></script>
 <script>
   // import the models from the library
-  const { BardModel, BingModel } = window.AIModelsBridge;
+  const { GeminiWebModel, BingWebModel } = window.AIModelsBridge;
   // The above can also be used in a separate js file instead of the inline script tag, as long as the script tag for the separate js file is AFTER the ai-models-bridge script tag (since the models are imported from the window object).
   // Example usage for the gemini web model is given below
 </script>
@@ -67,38 +67,98 @@ You can include the bundled library in your browser extension's HTML file:
 #### Example Usage for Gemini Web Model
 
 ```typescript
-import { BardModel } from 'ai-models-bridge';
+import { GeminiWebModel, StatusEvent } from 'ai-models-bridge';
 
-// Initialize the Bard/Gemini Web model (no API key required, but need to be logged in to Gemini in the browser)
-const model = new BardModel();
+// Initialize the Gemini Web model.
+// Note: You need to be logged into your Google account and have visited gemini.google.com in the same browser session for this to work, as it relies on existing session cookies.
+const model = new GeminiWebModel();
 
-// Create a new conversation thread
-await model.initNewThread();
+async function runGeminiExample() {
+  try {
+    // 1. Initialize a new conversation thread
+    // This prepares the model for a new chat session.
+    await model.initNewThread();
+    console.log('New thread initialized. Current thread ID:', model.currentThread?.id);
 
-// Send a message and get a response
-await model.sendMessage('Hello, how are you?', {
-  onProgress: (text) => {
-    console.log('Partial response:', text);
+    // 2. Send a text-only message
+    console.log('\nSending a text message to Gemini...');
+    await model.sendMessage('Hello, Gemini! What are some interesting facts about space?', {
+      onEvent: (event: StatusEvent) => {
+        switch (event.type) {
+          case 'UPDATE_ANSWER':
+            // Format for response streaming (even though Gemini currently doesn't support this). event.data.text usually contains the full updated text.
+            // For a UI, you'd update the displayed response here.
+            // console.clear(); // Optional: clear console for cleaner streaming view
+            console.log("Gemini's response (streaming):\n", event.data.text);
+            break;
+          case 'DONE':
+            console.log('\nMessage exchange complete!');
+            // The full conversation history is available in model.currentThread.messages
+            if (model.currentThread) {
+              const lastResponse = model.currentThread.messages.slice(-1)[0];
+              console.log('Final response from Gemini:', lastResponse?.content);
+            }
+            break;
+          case 'ERROR':
+            console.error('Error during message sending:', event.error.message);
+            break;
+          case 'TITLE_UPDATE':
+            // Gemini might automatically generate a title for the conversation.
+            console.log('Conversation title updated to:', event.data.title);
+            if (model.currentThread) model.currentThread.title = event.data.title;
+            break;
+        }
+      }
+    });
+
+    // 3. Send a message with an image (example)
+    // First, obtain a File object. This could be from an <input type="file"> element.
+    // For this example, we'll simulate it. Replace with actual file handling in your app.
+    
+    const imageInput = document.getElementById('your-image-input-id') as HTMLInputElement;
+    const imageFile = imageInput.files?.[0];
+
+    if (imageFile) {
+      console.log('\nSending a message with an image to Gemini...');
+      await model.sendMessage('Describe this image for me.', {
+        images: [imageFile], // Pass the image file in an array (Gemini Web supports only one image)
+        onEvent: (event: StatusEvent) => {
+          // Handle events similar to the text message example
+          switch (event.type) {
+            case 'UPDATE_ANSWER':
+              console.log('Gemini image description (streaming):\n', event.data.text);
+              break;
+            case 'DONE':
+              console.log('\nImage message exchange complete!');
+              break;
+            case 'ERROR':
+              console.error('Error with image message:', event.error.message);
+              break;
+          }
+        }
+      });
+    } else {
+      console.log('\nSkipping image message example as no image file was selected.');
+    }
+  
+
+    // The GeminiWebModel also supports other operations like:
+    // - model.editTitle('New Title', '🚀')
+    // - model.shareConversation()
+    // - model.unShareConversation()
+    // - model.getConversationData()
+    // - model.deleteServerThreads(['conversationIdToDelete'])
+    // - model.loadThread('existingThreadId')
+    // - model.getAllThreads() (inherited)
+    // Refer to the class definition in Library/src/models/gemini-web.ts for more details.
+
+  } catch (error) {
+    console.error('An error occurred in the Gemini example:', error);
   }
-});
+}
 
-// Access the conversation history
-const messages = model.currentThread.messages;
-
-// You can also send images (if supported by the model)
-// Example of creating a File object from an input element
-const fileInput = document.getElementById('imageInput') as HTMLInputElement;
-const imageFile = fileInput.files?.[0]; // Get the first selected file
-
-// Or create a File object programmatically
-// const imageFile = new File([imageBlob], "image.jpg", { type: "image/jpeg" });
-
-await model.sendMessage('What is in this image?', {
-  image: imageFile,
-  onProgress: (text) => {
-    console.log('Analyzing image:', text);
-  }
-});
+// Run the example
+runGeminiExample();
 
 ```
 

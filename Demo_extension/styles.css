@@ -812,4 +812,5 @@ textarea:focus {
 
 #prompt {
   resize: vertical;
+  min-height: 90px;
 }
